@@ -1,9 +1,9 @@
 export type Kind = 'income' | 'expense'
 export type Period = 'today' | 'week' | 'month'
-export interface User { id: string; name: string; email: string; password: string; avatar?: string; familyId?: string }
+export interface User { id: string; name: string; email: string; avatar?: string; familyId?: string }
 export interface Family { id: string; name: string; code: string }
 export interface Transaction { id: string; userId: string; familyId: string; kind: Kind; date: string; description: string; amount: number; recordedHour?: number }
-export interface Database { users: User[]; families: Family[]; transactions: Transaction[]; currentUserId: string | null }
+export interface Database { users: User[]; families: Family[]; transactions: Transaction[]; currentUserId: string | null; loading?: boolean }
 
 export const localDate = (date = new Date()) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 export const money = (value: number) => new Intl.NumberFormat('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)
