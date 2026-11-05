@@ -20,6 +20,7 @@ import {
   Trash2,
   TrendingDown,
   TrendingUp,
+  Wallet,
   UserRound,
   Users,
 } from "lucide-react";
@@ -187,7 +188,7 @@ function TransactionDialog({
 function App() {
   const [db, setDb] = useState<Database>({ ...emptyDatabase(), loading: true });
   const [page, setPage] = useState<Page>("dashboard");
-  const [period, setPeriod] = useState<Period>("week");
+  const [period, setPeriod] = useState<Period>("month");
   const [dialog, setDialog] = useState(false);
   const [editing, setEditing] = useState<Transaction>();
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
@@ -245,7 +246,7 @@ function App() {
       <div className="setup-screen">
         <Brand />
         <div className="setup-card">
-          <span className="eyebrow">KEBNOI CLUB</span>
+          <span className="eyebrow">เก็บหน่อย</span>
           <h1>กำลังเชื่อมต่อข้อมูล…</h1>
         </div>
       </div>
@@ -373,7 +374,7 @@ function App() {
     { key: "family" as const, label: "ครอบครัว", icon: Users },
     { key: "profile" as const, label: "โปรไฟล์", icon: UserRound },
   ];
-  const list = page === "dashboard" ? transactions.slice(0, 5) : transactions;
+  const list = page === "dashboard" ? filtered.slice(0, 5) : transactions;
   return (
     <div className="app-shell">
       <aside className="sidebar">
@@ -458,46 +459,27 @@ function App() {
               <div className="page-heading">
                 <div>
                   <div className="hello-line">
-                    YOUR FAMILY SPACE <span>✦</span>
+                    เรื่องเงินของครอบครัว
                   </div>
                   <h1>
-                    สวัสดี, {user.name} <span className="wave">✳</span>
+                    สวัสดี, {user.name}
                   </h1>
-                  <p>มาดูเรื่องเงินของบ้านเรากัน วันนี้เป็นยังไงบ้าง?</p>
+                  <p>รู้ว่าเงินเข้าเท่าไหร่ ใช้ไปเท่าไหร่ ในหน้าเดียว</p>
                 </div>
                 <Button className="primary-button add-button" onClick={openNew}>
                   <Plus data-icon="inline-start" /> เพิ่มรายการ
                 </Button>
               </div>
-              <section className="welcome-banner">
-                <div className="banner-copy">
-                  <span className="banner-chip">
-                    ✦ &nbsp; LITTLE STEPS, BIG DREAMS
-                  </span>
-                  <h2>
-                    เก็บเรื่องเล็ก ๆ<br />
-                    <span>ให้เป็นเรื่องใหญ่ไปด้วยกัน</span>
-                  </h2>
-                  <p>บันทึกทุกการใช้จ่าย แล้วค่อย ๆ เติบโตไปพร้อมกันนะ</p>
-                  <button onClick={() => setPage("family")}>
-                    ไปดูครอบครัวของเรา <ArrowRight size={16} />
-                  </button>
-                </div>
-                <div className="banner-art">
-                  <span className="banner-star star-a">✦</span>
-                  <span className="banner-star star-b">✳</span>
-                  <span className="banner-cloud cloud-a" />
-                  <span className="banner-cloud cloud-b" />
-                  <div className="banner-coin">฿</div>
-                  <PixelPal />
-                </div>
-                <span className="banner-grid" />
+              <section className="family-overview" aria-label="ครอบครัวของคุณ">
+                <span className="family-overview-icon"><House size={20} /></span>
+                <div><strong>{family.name}</strong><span>บันทึกรายรับรายจ่ายร่วมกัน · {members.length} คน</span></div>
+                <button className="view-all" onClick={() => setPage("family")}>ดูครอบครัว <ArrowRight size={16} /></button>
               </section>
               <div className="section-heading summary-heading">
                 <div>
-                  <span className="eyebrow">THE BIG PICTURE</span>
+                  <span className="eyebrow">สรุปรายรับรายจ่าย</span>
                   <h2>
-                    ภาพรวมของบ้านเรา <span>✦</span>
+                    ภาพรวม · {periodLabel}
                   </h2>
                 </div>
                 <div
@@ -508,12 +490,13 @@ function App() {
                   {(
                     [
                       ["today", "วันนี้"],
-                      ["week", "7 วัน"],
-                      ["month", "1 เดือน"],
+                      ["week", "7 วันล่าสุด"],
+                      ["month", "เดือนนี้"],
                     ] as const
                   ).map(([value, label]) => (
                     <button
                       key={value}
+                      aria-pressed={period === value}
                       className={period === value ? "active" : ""}
                       onClick={() => setPeriod(value)}
                     >
@@ -523,44 +506,23 @@ function App() {
                 </div>
               </div>
               <div className="stats-grid">
-                <div className="stat-card">
-                  <div className="stat-top">
-                    <span className="stat-icon income">
-                      <TrendingUp size={19} />
-                    </span>
-                    <span className="stat-meta">{periodLabel}</span>
-                  </div>
-                  <span className="stat-label">รายรับทั้งหมด</span>
+                <div className={`stat-card balance-card ${income - expense < 0 ? "is-negative" : ""}`}>
+                  <div className="stat-top"><span className="stat-icon family-icon"><Wallet size={20} /></span><span className="stat-meta">{periodLabel}</span></div>
+                  <span className="stat-label">ส่วนต่างรายรับ − รายจ่าย</span>
+                  <strong>฿{money(income - expense)}</strong>
+                  <small>{income === 0 && expense === 0 ? "เริ่มบันทึกเพื่อดูสรุปของครอบครัว" : income >= expense ? "รายรับมากกว่าหรือเท่ากับรายจ่าย" : "รายจ่ายมากกว่ารายรับในช่วงนี้"}</small>
+                </div>
+                <div className="stat-card income-card">
+                  <div className="stat-top"><span className="stat-icon income"><TrendingUp size={20} /></span><span className="stat-meta">{periodLabel}</span></div>
+                  <span className="stat-label">รายรับรวม</span>
                   <strong>฿{money(income)}</strong>
-                  <small>
-                    <span className="positive">↗</span> เงินที่เข้ามาในครอบครัว
-                  </small>
+                  <small>เงินที่ครอบครัวได้รับในช่วงนี้</small>
                 </div>
-                <div className="stat-card">
-                  <div className="stat-top">
-                    <span className="stat-icon expense">
-                      <TrendingDown size={19} />
-                    </span>
-                    <span className="stat-meta">{periodLabel}</span>
-                  </div>
-                  <span className="stat-label">รายจ่ายทั้งหมด</span>
+                <div className="stat-card expense-card">
+                  <div className="stat-top"><span className="stat-icon expense"><TrendingDown size={20} /></span><span className="stat-meta">{periodLabel}</span></div>
+                  <span className="stat-label">รายจ่ายรวม</span>
                   <strong>฿{money(expense)}</strong>
-                  <small>
-                    <span className="negative">↗</span> เงินที่ใช้ไปร่วมกัน
-                  </small>
-                </div>
-                <div className="stat-card">
-                  <div className="stat-top">
-                    <span className="stat-icon family-icon">
-                      <Users size={19} />
-                    </span>
-                    <span className="stat-meta">ในครอบครัว</span>
-                  </div>
-                  <span className="stat-label">สมาชิกทั้งหมด</span>
-                  <strong>
-                    {members.length} <em>คน</em>
-                  </strong>
-                  <small>บ้านนี้มีเพื่อนร่วมเก็บออม</small>
+                  <small>เงินที่ครอบครัวใช้ไปในช่วงนี้</small>
                 </div>
               </div>
               <div className="dashboard-grid">
@@ -591,10 +553,10 @@ function App() {
                 <section className="panel top-panel">
                   <div className="panel-heading">
                     <div>
-                      <h2>สายเปย์ประจำบ้าน</h2>
+                      <h2>รายจ่ายแยกตามสมาชิก</h2>
                       <p>รายจ่ายของทุกคน · {periodLabel}</p>
                     </div>
-                    <span className="top-sparkle">✦</span>
+                    <Users size={20} />
                   </div>
                   <div className="spending-list">
                     {ranking.map(({ member, amount }, index) => (
@@ -606,7 +568,7 @@ function App() {
                               : "spending-rank"
                           }
                         >
-                          {index === 0 && amount > 0 ? "♛" : index + 1}
+                          {index + 1}
                         </span>
                         <Avatar user={member} />
                         <div className="spending-name">
@@ -635,7 +597,7 @@ function App() {
           {page === "transactions" && (
             <div className="page-heading">
               <div>
-                <span className="eyebrow">ALL THE LITTLE THINGS</span>
+                <span className="eyebrow">บันทึกรายรับรายจ่าย</span>
                 <h1>รายการทั้งหมด</h1>
                 <p>ทุกเรื่องเงินของครอบครัว อยู่รวมกันตรงนี้</p>
               </div>
@@ -653,7 +615,7 @@ function App() {
                       ? "รายการล่าสุด"
                       : "รายการของครอบครัว"}
                   </h2>
-                  <p>เรื่องเล็ก ๆ ที่เราเพิ่งบันทึกไว้</p>
+                  <p>{page === "dashboard" ? `5 รายการล่าสุด · ${periodLabel}` : `ทั้งหมด ${transactions.length} รายการ`}</p>
                 </div>
                 {page === "dashboard" && (
                   <button
@@ -667,7 +629,7 @@ function App() {
               <div className="transaction-list">
                 {list.length === 0 ? (
                   <div className="empty-small">
-                    ยังไม่มีรายการ ลองเพิ่มรายการแรกกัน
+                    <ReceiptText size={28} /><strong>ยังไม่มีรายการ{page === "dashboard" ? `ในช่วง${periodLabel}` : ""}</strong><span>เพิ่มรายรับหรือรายจ่าย เพื่อเริ่มดูภาพรวมของบ้าน</span><Button className="primary-button" onClick={openNew}><Plus size={16} /> เพิ่มรายการแรก</Button>
                   </div>
                 ) : (
                   list.map((item) => {
@@ -724,7 +686,7 @@ function App() {
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">BETTER TOGETHER</span>
+                  <span className="eyebrow">จัดการครอบครัว</span>
                   <h1>ครอบครัวของเรา</h1>
                   <p>เพราะเรื่องเงินสนุกขึ้น เมื่อเราเก็บไปด้วยกัน</p>
                 </div>
@@ -734,7 +696,7 @@ function App() {
                   <div className="family-card-icon">
                     <House size={24} />
                   </div>
-                  <span className="eyebrow">OUR LITTLE FAMILY</span>
+                  <span className="eyebrow">ครอบครัวของคุณ</span>
                   <h2>{family.name}</h2>
                   <p>ส่งรหัสนี้ให้สมาชิก เพื่อชวนเข้าร่วมครอบครัว</p>
                   <div className="family-code">
@@ -787,7 +749,7 @@ function App() {
             <>
               <div className="page-heading">
                 <div>
-                  <span className="eyebrow">A LITTLE ABOUT YOU</span>
+                  <span className="eyebrow">บัญชีของคุณ</span>
                   <h1>โปรไฟล์ของฉัน</h1>
                   <p>จัดการข้อมูลส่วนตัวของคุณได้ที่นี่</p>
                 </div>
@@ -877,7 +839,7 @@ function App() {
           )}
           <footer className="footer">
             <span>
-              MADE WITH <span>♥</span> FOR LITTLE SAVERS
+              เก็บหน่อย · เรื่องเงินของบ้านเรา
             </span>
             <span>ค่อย ๆ เก็บ ค่อย ๆ โตไปด้วยกัน ✦</span>
           </footer>

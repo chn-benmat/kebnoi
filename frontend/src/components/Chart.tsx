@@ -38,6 +38,9 @@ export function Chart({
         .reduce((sum, t) => sum + t.amount, 0),
     };
   });
+  if (transactions.length === 0) {
+    return <div className="chart-empty"><strong>ยังไม่มีข้อมูลสำหรับกราฟ</strong><span>เมื่อบันทึกรายการในช่วงเวลานี้ จะแสดงรายรับและรายจ่ายที่นี่</span></div>;
+  }
   const max = Math.max(100, ...buckets.flatMap((b) => [b.income, b.expense]));
   return (
     <div className="chart-wrap">
