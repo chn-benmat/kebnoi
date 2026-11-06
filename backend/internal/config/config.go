@@ -2,26 +2,26 @@ package config
 
 import (
 	"bufio"
-	"fmt"
 	"os"
 	"strings"
 )
 
 type Config struct {
-	Port, FrontendOrigin, SupabaseURL, SupabaseServiceKey string
+	Port, FrontendOrigin                       string
+	DBHost, DBPort, DBName, DBUser, DBPassword string
 }
 
 func Load() (Config, error) {
 	loadFile(".env.local")
 	loadFile(".env")
 	c := Config{
-		Port:               value("PORT", "8080"),
-		FrontendOrigin:     value("FRONTEND_ORIGIN", "http://localhost:5173"),
-		SupabaseURL:        strings.TrimRight(os.Getenv("SUPABASE_URL"), "/"),
-		SupabaseServiceKey: os.Getenv("SUPABASE_SERVICE_ROLE_KEY"),
-	}
-	if c.SupabaseURL == "" || c.SupabaseServiceKey == "" {
-		return Config{}, fmt.Errorf("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be set in backend/.env.local")
+		Port:           value("PORT", "8080"),
+		FrontendOrigin: strings.TrimRight(value("FRONTEND_ORIGIN", "http://localhost:5173"), "/"),
+		DBHost:         value("DB_HOST", "localhost"),
+		DBPort:         value("DB_PORT", "3306"),
+		DBName:         value("DB_NAME", "kebnoi_db"),
+		DBUser:         value("DB_USER", "root"),
+		DBPassword:     os.Getenv("DB_PASSWORD"),
 	}
 	return c, nil
 }

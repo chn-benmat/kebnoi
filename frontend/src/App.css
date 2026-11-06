@@ -965,9 +965,18 @@ button {
   padding-top: 22px;
   border-top: 1px solid var(--color-line);
 }
-.danger-zone strong {
+.danger-delete-link {
+  padding: 0;
+  background: transparent;
   color: var(--color-red);
+  text-align: left;
   font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.danger-delete-link:hover,
+.danger-delete-link:focus-visible {
+  text-decoration: underline;
 }
 .form-stack {
   display: flex;
@@ -1138,14 +1147,6 @@ button {
   margin: 22px 0;
   text-align: center;
 }
-.mock-note {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 6px;
-  color: var(--color-muted);
-  font-size: 10px;
-}
 .auth-mobile-brand {
   display: none;
 }
@@ -1314,7 +1315,7 @@ button {
     left: 0;
     right: 0;
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     padding: 7px 5px max(7px, env(safe-area-inset-bottom));
     border-top: 1px solid var(--color-line);
     background: var(--color-white);

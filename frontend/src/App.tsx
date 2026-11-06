@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Copy,
   House,
+  LockKeyhole,
   LogOut,
   Pencil,
   Plus,
@@ -36,7 +37,9 @@ import { Auth, Brand, FamilySetup } from "./components/Auth";
 import { PixelPal } from "./components/PixelPal";
 import { Chart } from "./components/Chart";
 import {
+  assetURL,
   bootstrap,
+  changePassword,
   createTransaction,
   deleteAccount,
   deleteTransaction,
@@ -47,6 +50,7 @@ import {
   updateCredentials,
   updateProfile,
   updateTransaction,
+  uploadProfileAvatar,
 } from "./data/api";
 import {
   inPeriod,
@@ -61,7 +65,7 @@ import {
 } from "./domain/model";
 import "./App.css";
 
-type Page = "dashboard" | "transactions" | "family" | "profile";
+type Page = "dashboard" | "transactions" | "family" | "profile" | "security";
 type Confirmation =
   | { kind: "transaction"; transaction: Transaction }
   | { kind: "account" }
@@ -76,7 +80,7 @@ function Avatar({ user, size = "" }: { user?: User; size?: string }) {
   return (
     <span className={`avatar ${size}`}>
       {user?.avatar ? (
-        <img src={user.avatar} alt="" />
+        <img src={assetURL(user.avatar)} alt="" />
       ) : (
         user?.name.slice(0, 1) || "?"
       )}
@@ -104,7 +108,7 @@ function TransactionDialog({
     const description = String(data.get("description")).trim();
     if (!description || !Number.isFinite(amount) || amount <= 0) return;
     save({ kind, date: String(data.get("date")), description, amount });
-    close();
+    // Keep the dialog open if the save request fails.
   }
   return (
     <Dialog
@@ -194,6 +198,10 @@ function App() {
   const [copied, setCopied] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
   const [profileError, setProfileError] = useState("");
+  const [passwordMessage, setPasswordMessage] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [avatarBusy, setAvatarBusy] = useState(false);
   const [requestError, setRequestError] = useState("");
   async function reload() {
     setRequestError("");
@@ -215,7 +223,11 @@ function App() {
     setDb((current) => ({ ...current, loading: true }));
     try {
       await action();
-      await reload();
+      if (hasSession()) await reload();
+      else {
+        setRequestError("");
+        setDb({ ...emptyDatabase(), loading: false });
+      }
     } catch (error) {
       setRequestError(
         error instanceof Error ? error.message : "เชื่อมต่อระบบไม่สำเร็จ",
@@ -316,30 +328,69 @@ function App() {
     const data = new FormData(e.currentTarget);
     const name = String(data.get("name")).trim();
     const email = String(data.get("email")).trim().toLowerCase();
-    const password = String(data.get("password"));
     if (!name) {
       setProfileError("กรุณากรอกชื่อผู้ใช้");
       return;
     }
-    if (password && password.length < 6) {
-      setProfileError("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
-      return;
-    }
     void runRequest(async () => {
       await updateProfile(name);
-      if (email !== user!.email || password)
-        await updateCredentials(email, password || undefined);
+      if (email !== user!.email)
+        await updateCredentials(email);
       setProfileMessage("บันทึกโปรไฟล์เรียบร้อยแล้ว");
     });
   }
-  function uploadAvatar(e: ChangeEvent<HTMLInputElement>) {
+  async function uploadAvatar(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    setProfileError(
-      !file.type.startsWith("image/") || file.size > 1024 * 1024
-        ? "กรุณาเลือกรูปภาพขนาดไม่เกิน 1 MB"
-        : "รูปโปรไฟล์จะเปิดใช้หลังตั้งค่า Supabase Storage",
-    );
+    setProfileError("");
+    setProfileMessage("");
+    if (!file.type.match(/^image\/(png|jpeg|gif)$/) || file.size > 1024 * 1024) {
+      setProfileError("เลือกรูป PNG, JPEG หรือ GIF ขนาดไม่เกิน 1 MB");
+      e.target.value = "";
+      return;
+    }
+    setAvatarBusy(true);
+    try {
+      const updated = await uploadProfileAvatar(file);
+      setDb((current) => ({
+        ...current,
+        users: current.users.map((item) => item.id === updated.id ? updated : item),
+      }));
+      setProfileMessage("อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว");
+    } catch (error) {
+      setProfileError(error instanceof Error ? error.message : "อัปโหลดรูปโปรไฟล์ไม่สำเร็จ");
+    } finally {
+      setAvatarBusy(false);
+      e.target.value = "";
+    }
+  }
+  async function savePassword(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    setPasswordError("");
+    setPasswordMessage("");
+    const form = e.currentTarget;
+    const data = new FormData(form);
+    const currentPassword = String(data.get("currentPassword") || "");
+    const newPassword = String(data.get("newPassword") || "");
+    const confirmPassword = String(data.get("confirmPassword") || "");
+    if (newPassword.length < 6 || newPassword.length > 72) {
+      setPasswordError("รหัสผ่านใหม่ต้องมีความยาว 6–72 ตัวอักษร");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("รหัสผ่านใหม่และการยืนยันไม่ตรงกัน");
+      return;
+    }
+    setPasswordBusy(true);
+    try {
+      await changePassword(currentPassword, newPassword);
+      form.reset();
+      setPasswordMessage("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
+    } catch (error) {
+      setPasswordError(error instanceof Error ? error.message : "เปลี่ยนรหัสผ่านไม่สำเร็จ");
+    } finally {
+      setPasswordBusy(false);
+    }
   }
   function confirmAction() {
     if (!confirmation) return;
@@ -348,9 +399,13 @@ function App() {
       if (target.userId === user!.id)
         void runRequest(() => deleteTransaction(target.id));
     } else if (confirmation.kind === "account") {
-      void runRequest(async () => {
-        await deleteAccount();
+      setDb((current) => ({ ...current, loading: true }));
+      void deleteAccount().then(() => {
+        setRequestError("");
         setDb({ ...emptyDatabase(), loading: false });
+      }).catch((error) => {
+        setRequestError(error instanceof Error ? error.message : "ลบบัญชีไม่สำเร็จ");
+        setDb((current) => ({ ...current, loading: false }));
       });
     } else {
       void runRequest(leaveFamilyApi);
@@ -372,6 +427,7 @@ function App() {
     { key: "transactions" as const, label: "รายการทั้งหมด", icon: ReceiptText },
     { key: "family" as const, label: "ครอบครัว", icon: Users },
     { key: "profile" as const, label: "โปรไฟล์", icon: UserRound },
+    { key: "security" as const, label: "รหัสผ่าน", icon: LockKeyhole },
   ];
   const list = page === "dashboard" ? transactions.slice(0, 5) : transactions;
   return (
@@ -799,10 +855,11 @@ function App() {
                     <h2>{user.name}</h2>
                     <p>อัปโหลดรูปภาพขนาดไม่เกิน 1 MB</p>
                     <label className="upload-button">
-                      เปลี่ยนรูปโปรไฟล์
+                      {avatarBusy ? "กำลังอัปโหลด…" : "เปลี่ยนรูปโปรไฟล์"}
                       <input
                         type="file"
-                        accept="image/*"
+                        accept="image/png,image/jpeg,image/gif"
+                        disabled={avatarBusy}
                         onChange={uploadAvatar}
                       />
                     </label>
@@ -831,14 +888,6 @@ function App() {
                       required
                     />
                   </label>
-                  <label>
-                    รหัสผ่านใหม่
-                    <Input
-                      name="password"
-                      type="password"
-                      placeholder="เว้นว่างไว้หากไม่ต้องการเปลี่ยน"
-                    />
-                  </label>
                   {profileError && (
                     <p className="form-error" role="alert">
                       {profileError}
@@ -855,15 +904,15 @@ function App() {
                 </form>
                 <div className="danger-zone">
                   <div>
-                    <strong>ลบบัญชี</strong>
+                    <button
+                      type="button"
+                      className="danger-delete-link"
+                      onClick={() => setConfirmation({ kind: "account" })}
+                    >
+                      ลบบัญชี
+                    </button>
                     <p>บัญชีและรายการส่วนตัวของคุณจะถูกลบอย่างถาวร</p>
                   </div>
-                  <Button
-                    variant="outline"
-                    onClick={() => setConfirmation({ kind: "account" })}
-                  >
-                    ลบบัญชี
-                  </Button>
                 </div>
                 <Button
                   variant="outline"
@@ -872,6 +921,38 @@ function App() {
                 >
                   <LogOut data-icon="inline-start" /> ออกจากระบบ
                 </Button>
+              </section>
+            </>
+          )}
+          {page === "security" && (
+            <>
+              <div className="page-heading">
+                <div>
+                  <span className="eyebrow">ACCOUNT SECURITY</span>
+                  <h1>เปลี่ยนรหัสผ่าน</h1>
+                  <p>ใช้รหัสผ่านปัจจุบันเพื่อยืนยันก่อนตั้งรหัสผ่านใหม่</p>
+                </div>
+              </div>
+              <section className="panel profile-panel security-panel">
+                <form className="form-stack" onSubmit={savePassword}>
+                  <label>
+                    รหัสผ่านปัจจุบัน
+                    <Input name="currentPassword" type="password" autoComplete="current-password" required />
+                  </label>
+                  <label>
+                    รหัสผ่านใหม่
+                    <Input name="newPassword" type="password" autoComplete="new-password" minLength={6} maxLength={72} required />
+                  </label>
+                  <label>
+                    ยืนยันรหัสผ่านใหม่
+                    <Input name="confirmPassword" type="password" autoComplete="new-password" minLength={6} maxLength={72} required />
+                  </label>
+                  {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
+                  {passwordMessage && <p className="form-notice" role="status">{passwordMessage}</p>}
+                  <Button type="submit" className="primary-button" disabled={passwordBusy}>
+                    {passwordBusy ? "กำลังบันทึก…" : "บันทึกรหัสผ่านใหม่"}
+                  </Button>
+                </form>
               </section>
             </>
           )}

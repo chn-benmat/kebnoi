@@ -1,13 +1,11 @@
 import { useState, type FormEvent } from "react";
-import { ArrowRight, CircleHelp } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PixelPal } from "./PixelPal";
 import {
   createFamily,
   joinFamily,
-  resetPassword,
-  resendConfirmation,
   signIn,
   signUp,
 } from "../data/api";
@@ -18,7 +16,7 @@ export function Brand() {
     <div className="brand">
       <div className="brand-mark">฿</div>
       <div>
-        <strong>เก็บน้อย</strong>
+        <strong>เก็บหน่อย</strong>
         <small>KEBNOI CLUB</small>
       </div>
     </div>
@@ -33,46 +31,27 @@ type Props = {
   bootstrapError?: string;
 };
 
-export function Auth({ db, update, busy, bootstrapError = "" }: Props) {
+export function Auth({ update, bootstrapError = "" }: Props) {
   const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [verificationEmail, setVerificationEmail] = useState("");
+  const [isBusy, setIsBusy] = useState(false);
   function change(next: typeof mode) {
     setMode(next);
     setError("");
     setNotice("");
-    setVerificationEmail("");
-  }
-  async function resendVerification() {
-    setError("");
-    setNotice("");
-    busy(true);
-    try {
-      await resendConfirmation(verificationEmail);
-      setNotice(
-        "ส่งอีเมลยืนยันอีกครั้งแล้ว กรุณาตรวจกล่องจดหมายและโฟลเดอร์สแปม",
-      );
-    } catch (cause) {
-      setError(
-        cause instanceof Error ? cause.message : "ส่งอีเมลยืนยันไม่สำเร็จ",
-      );
-    } finally {
-      busy(false);
-    }
   }
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
     setNotice("");
-    busy(true);
+    setIsBusy(true);
     const data = new FormData(e.currentTarget);
     const email = String(data.get("email")).trim().toLowerCase();
     const password = String(data.get("password") || "");
     try {
       if (mode === "forgot") {
-        await resetPassword(email);
-        setNotice("ส่งลิงก์กู้รหัสผ่านไปยังอีเมลแล้ว");
+        setNotice("ระบบกู้รหัสผ่านยังไม่เปิดใช้งาน กรุณาติดต่อผู้ดูแลระบบ");
         return;
       }
       if (mode === "login") {
@@ -85,23 +64,14 @@ export function Auth({ db, update, busy, bootstrapError = "" }: Props) {
         throw new Error("รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร");
       if (password !== data.get("confirm"))
         throw new Error("รหัสผ่านยืนยันไม่ตรงกัน");
-      const result = await signUp(name, email, password);
-      if (result) update(result);
-      else setNotice("สมัครสมาชิกแล้ว กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ");
+      update(await signUp(name, email, password));
     } catch (cause) {
       const message =
         cause instanceof Error ? cause.message : "ดำเนินการไม่สำเร็จ";
-      if (
-        mode === "login" &&
-        /email not confirmed|email_not_confirmed/i.test(message)
-      ) {
-        setVerificationEmail(email);
-        setNotice(
-          "บัญชีนี้ยังไม่ได้ยืนยันอีเมล กรุณายืนยันจากอีเมลที่ส่งให้ตอนสมัครก่อนเข้าสู่ระบบ",
-        );
-      } else setError(message);
+      if (mode === "signup") console.error("[auth] signup failed:", cause);
+      setError(mode === "signup" ? `สมัครสมาชิกไม่สำเร็จ: ${message}` : message);
     } finally {
-      busy(false);
+      setIsBusy(false);
     }
   }
   return (
@@ -146,7 +116,7 @@ export function Auth({ db, update, busy, bootstrapError = "" }: Props) {
               ? "เข้าสู่ระบบ แล้วมาดูเงินของเรากัน"
               : mode === "signup"
                 ? "เริ่มต้นเก็บเรื่องเงินดี ๆ ไปด้วยกัน"
-                : "กรอกอีเมลเพื่อรับลิงก์กู้รหัสผ่าน"}
+                : "หน้าสำหรับขอความช่วยเหลือเรื่องรหัสผ่าน"}
           </p>
           {bootstrapError && mode === "login" && (
             <p className="form-error" role="alert">
@@ -167,12 +137,7 @@ export function Auth({ db, update, busy, bootstrapError = "" }: Props) {
             )}
             <label>
               อีเมล
-              <Input
-                name="email"
-                type="email"
-                placeholder="hello@example.com"
-                required
-              />
+              <Input name="email" type="email" placeholder="hello@example.com" required />
             </label>
             {mode !== "forgot" && (
               <label>
@@ -217,26 +182,16 @@ export function Auth({ db, update, busy, bootstrapError = "" }: Props) {
                 {notice}
               </p>
             )}
-            {verificationEmail && (
-              <button
-                className="text-link"
-                type="button"
-                disabled={db.loading}
-                onClick={() => void resendVerification()}
-              >
-                ส่งอีเมลยืนยันอีกครั้ง
-              </button>
-            )}
             <Button
               className="primary-button"
               type="submit"
-              disabled={db.loading}
+              disabled={isBusy}
             >
               {mode === "login"
                 ? "เข้าสู่ระบบ"
                 : mode === "signup"
                   ? "สร้างบัญชี"
-                  : "ส่งลิงก์กู้รหัสผ่าน"}{" "}
+                  : "แจ้งวิธีดำเนินการ"}{" "}
               <ArrowRight data-icon="inline-end" />
             </Button>
           </form>
@@ -249,10 +204,6 @@ export function Auth({ db, update, busy, bootstrapError = "" }: Props) {
               {mode === "login" ? "สมัครสมาชิก" : "เข้าสู่ระบบ"}
             </button>
           </p>
-          <div className="mock-note">
-            <CircleHelp size={15} /> ใช้ Supabase Auth
-            และบันทึกข้อมูลไว้ในฐานข้อมูลของครอบครัว
-          </div>
         </div>
       </div>
     </div>
