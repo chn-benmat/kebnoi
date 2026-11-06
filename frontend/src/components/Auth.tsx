@@ -17,7 +17,11 @@ export function Brand() {
       <div className="brand-mark">฿</div>
       <div>
         <strong>เก็บหน่อย</strong>
+<<<<<<< HEAD
         <small>KEBNOI CLUB</small>
+=======
+        <small>เรื่องเงินของบ้านเรา</small>
+>>>>>>> f23d000fc17f919b8114c93f89cdef9baae32aef
       </div>
     </div>
   );
@@ -95,7 +99,7 @@ export function Auth({ update, bootstrapError = "" }: Props) {
           <p>บันทึกไปด้วยกัน เก็บทุกความฝันไปด้วยกัน</p>
         </div>
         <div className="auth-bottom">
-          MADE FOR YOUR LITTLE WINS <span>✦</span>
+          บันทึกง่าย เข้าใจเงินของบ้าน <span>✦</span>
         </div>
       </div>
       <div className="auth-main">
@@ -103,7 +107,7 @@ export function Auth({ update, bootstrapError = "" }: Props) {
           <Brand />
         </div>
         <div className="auth-form">
-          <span className="eyebrow">HELLO, SAVER!</span>
+          <span className="eyebrow">เริ่มต้นกับเก็บหน่อย</span>
           <h2>
             {mode === "login"
               ? "ยินดีต้อนรับกลับมา"

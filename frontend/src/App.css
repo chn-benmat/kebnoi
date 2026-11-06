@@ -577,12 +577,12 @@ button {
   border-radius: 10px;
 }
 .stat-icon.income {
-  color: var(--color-green);
-  background: var(--color-green-pale);
+  color: var(--color-income);
+  background: var(--color-income-pale);
 }
 .stat-icon.expense {
-  color: var(--color-orange);
-  background: var(--color-orange-pale);
+  color: var(--color-expense);
+  background: var(--color-expense-pale);
 }
 .stat-icon.family-icon {
   color: var(--color-blue);
@@ -614,10 +614,10 @@ button {
   font-size: 10px;
 }
 .positive {
-  color: var(--color-green);
+  color: var(--color-income);
 }
 .negative {
-  color: var(--color-orange);
+  color: var(--color-expense);
 }
 .dashboard-grid {
   display: grid;
@@ -649,15 +649,16 @@ button {
   gap: 5px;
 }
 .legend i {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 22px;
+  height: 0;
+  border-top: 3px solid;
 }
 .legend-income {
-  background: var(--color-blue);
+  border-color: var(--color-chart-income) !important;
 }
 .legend-expense {
-  background: var(--color-orange);
+  border-color: var(--color-chart-expense) !important;
+  border-top-style: dashed !important;
 }
 .chart-wrap {
   display: flex;
@@ -688,18 +689,19 @@ button {
   stroke-width: 0.35;
   stroke-dasharray: 1 1;
 }
-.chart polyline {
+.chart polyline,
+.chart path {
   fill: none;
   stroke-width: 1;
   stroke-linejoin: round;
   vector-effect: non-scaling-stroke;
 }
 .chart-income {
-  stroke: var(--color-blue);
+  stroke: var(--color-chart-income);
   stroke-width: 3 !important;
 }
 .chart-expense {
-  stroke: var(--color-orange);
+  stroke: var(--color-chart-expense);
   stroke-width: 3 !important;
 }
 .chart-labels {
@@ -727,7 +729,7 @@ button {
   padding: 12px 0 4px;
 }
 .crown {
-  color: var(--color-orange);
+  color: var(--color-expense);
   font-size: 24px;
   line-height: 1;
 }
@@ -788,12 +790,12 @@ button {
   border-radius: 10px;
 }
 .transaction-icon.income {
-  color: var(--color-green);
-  background: var(--color-green-pale);
+  color: var(--color-income);
+  background: var(--color-income-pale);
 }
 .transaction-icon.expense {
-  color: var(--color-orange);
-  background: var(--color-orange-pale);
+  color: var(--color-expense);
+  background: var(--color-expense-pale);
 }
 .transaction-name {
   flex: 1;
@@ -823,7 +825,7 @@ button {
   font: 700 13px var(--font-number);
 }
 .transaction-amount.income {
-  color: var(--color-green);
+  color: var(--color-income);
 }
 .row-actions {
   display: flex;
@@ -1003,7 +1005,7 @@ button {
   font-size: 11px !important;
 }
 .form-notice {
-  color: var(--color-green) !important;
+  color: var(--color-income) !important;
   font-size: 11px !important;
 }
 .segmented button {
@@ -1220,7 +1222,7 @@ button {
   font: 700 12px var(--font-number);
 }
 .spending-rank.first {
-  color: var(--color-orange);
+  color: var(--color-expense);
   font-size: 20px;
 }
 .spending-name {
@@ -1461,3 +1463,108 @@ button {
     scroll-behavior: auto !important;
   }
 }
+
+/* Clear financial overview and comfortably sized controls. */
+body { line-height: 1.65; }
+.brand-mark { border: 0; border-radius: 13px; box-shadow: none; width: 42px; height: 42px; }
+.brand small { font-family: var(--font-body); font-size: 11px; letter-spacing: 0; font-weight: 500; }
+.nav-caption { margin-top: 36px; font-size: 12px; }
+.nav-item { min-height: 48px; font-size: 14px; border-radius: 12px; }
+.sidebar-tip { display: none; }
+.page-content { max-width: 1320px; padding-top: 32px; }
+.page-heading h1 { font-size: 28px; line-height: 1.5; }
+.page-heading p { font-size: 14px; margin-top: 6px; }
+.hello-line, .eyebrow { font: 600 12px var(--font-body); letter-spacing: 0; }
+.primary-button { min-height: 46px; font-size: 14px; border-radius: 12px; box-shadow: none; gap: 8px; }
+.family-overview { display: flex; align-items: center; gap: 14px; padding: 17px 20px; background: var(--color-blue-pale); border: 1px solid var(--color-blue-light); border-radius: 16px; }
+.family-overview-icon { display: grid; place-items: center; width: 44px; height: 44px; flex: none; color: var(--color-blue); background: white; border-radius: 12px; }
+.family-overview > div { flex: 1; min-width: 0; }
+.family-overview strong, .family-overview > div > span { display: block; overflow-wrap: anywhere; }
+.family-overview strong { font-size: 15px; }
+.family-overview > div > span { font-size: 12px; color: var(--color-ink-soft); }
+.summary-heading { margin-top: 26px; }
+.section-heading h2 { font-size: 20px; }
+.period-select button, .segmented button { font-size: 13px; min-height: 40px; }
+.stat-card { padding: 22px; box-shadow: 0 3px 14px #16345104; }
+.stat-label { font-size: 14px; }
+.stat-card strong { font-size: clamp(24px, 2.6vw, 36px); letter-spacing: -0.035em; overflow-wrap: anywhere; }
+.stat-card small, .stat-meta { font-size: 12px; }
+.balance-card { background: linear-gradient(120deg, #166534, #047857); border-color: #166534; color: white; }
+.balance-card .stat-label, .balance-card .stat-meta, .balance-card small { color: #f0fdf4; }
+.balance-card .stat-icon { background: #ffffff20; color: white; }
+.balance-card.is-negative { background: linear-gradient(120deg, #991b1b, #b91c1c); border-color: #991b1b; }
+.balance-card.is-negative .stat-label, .balance-card.is-negative .stat-meta, .balance-card.is-negative small { color: #fef2f2; }
+.income-card strong { color: var(--color-income); }
+.expense-card strong { color: var(--color-expense); }
+.dashboard-grid { gap: 18px; margin-top: 20px; }
+.panel { padding: 24px; box-shadow: 0 3px 14px #16345104; }
+.panel-heading h2 { font-size: 17px; line-height: 1.5; }
+.panel-heading p { font-size: 12px; }
+.chart-panel .panel-heading { flex-wrap: wrap; }
+.legend { font-size: 12px; }
+.chart-wrap { height: 210px; margin-top: 28px; }
+.chart-expense { stroke-dasharray: 6 4; }
+.chart-values, .chart-labels { font-size: 10px; }
+.transactions-panel { margin-top: 20px; }
+.transaction-row { padding: 16px 0; }
+.transaction-name strong { font-size: 14px; }
+.transaction-name span { font-size: 12px; }
+.transaction-amount { font-size: 15px; }
+.transaction-amount.expense { color: var(--color-expense); }
+.row-actions button { min-width: 40px; min-height: 40px; border-radius: 8px; }
+.row-actions button:hover { background: var(--color-blue-pale); }
+.view-all { font-size: 13px; min-height: 44px; }
+.empty-small { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 12px; font-size: 13px; }
+.empty-small strong { font-size: 16px; color: var(--color-ink); }
+.empty-small .primary-button { margin-top: 8px; }
+.form-stack label { font-size: 14px; }
+.form-stack input { min-height: 46px; font-size: 16px; }
+.auth-form > p { font-size: 14px; }
+.footer { font: 500 11px var(--font-body); letter-spacing: 0; }
+button:focus-visible { outline: 3px solid var(--color-blue); outline-offset: 3px; }
+@media (max-width: 1100px) and (min-width: 769px) {
+  .stats-grid { gap: 10px; }
+  .stat-card { padding: 16px; }
+  .stat-card small { font-size: 11px; }
+  .dashboard-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 768px) {
+  .page-content { padding: 24px 18px; }
+  .mobile-nav button { font-size: 11px; min-height: 48px; }
+  .main-area { padding-bottom: 82px; }
+  .panel { padding: 20px; }
+}
+@media (max-width: 520px) {
+  .page-heading { gap: 14px; }
+  .page-heading h1 { font-size: 25px; }
+  .page-heading p { font-size: 13px; }
+  .page-heading .add-button { width: 100%; }
+  .family-overview { padding: 14px; gap: 10px; flex-wrap: wrap; }
+  .family-overview .view-all { margin-left: 54px; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .stat-card { padding: 16px; min-height: auto; }
+  .stat-top { position: static; margin-bottom: 12px; }
+  .stat-card strong { font-size: 23px; }
+  .stat-card small { font-size: 11px; }
+  .stat-label { font-size: 13px; }
+  .balance-card { grid-column: 1 / -1; }
+  .balance-card strong { font-size: 34px; }
+  .balance-card .stat-meta { display: block; }
+  .panel { padding: 17px; }
+  .transaction-row { flex-wrap: wrap; gap: 10px; }
+  .transaction-name { flex-basis: calc(100% - 50px); }
+  .transaction-name strong { white-space: normal; overflow-wrap: anywhere; }
+  .transaction-amount { margin-left: 48px; font-size: 15px; }
+  .row-actions { margin-left: auto; }
+  .panel-heading { gap: 10px; }
+  .panel-heading h2 { font-size: 16px; }
+  .chart-labels { font-size: 8px; }
+}
+
+.chart-empty { min-height: 238px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 8px; text-align: center; color: var(--color-muted); font-size: 13px; }
+.chart-empty strong { color: var(--color-ink-soft); font-size: 15px; }
+
+.income-card { background: linear-gradient(135deg, #fff, var(--color-income-pale)); border-color: #bae6fd; }
+.expense-card { background: linear-gradient(135deg, #fff, var(--color-expense-pale)); border-color: #fecaca; }
+.chart-panel { background: linear-gradient(180deg, #f5faff, #fff 65%); border-color: #dbeafe; }
+.chart path { stroke-linecap: round; }

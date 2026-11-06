@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 # Kebnoi frontend
+=======
+# เก็บหน่อย
+>>>>>>> f23d000fc17f919b8114c93f89cdef9baae32aef
 
 React/Vite interface for the Kebnoi family income and expense tracker. Authentication and app data are provided by the Go API; the browser does not connect directly to MySQL.
 
