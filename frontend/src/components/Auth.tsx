@@ -17,11 +17,7 @@ export function Brand() {
       <div className="brand-mark">฿</div>
       <div>
         <strong>เก็บหน่อย</strong>
-<<<<<<< HEAD
-        <small>KEBNOI CLUB</small>
-=======
         <small>เรื่องเงินของบ้านเรา</small>
->>>>>>> f23d000fc17f919b8114c93f89cdef9baae32aef
       </div>
     </div>
   );
