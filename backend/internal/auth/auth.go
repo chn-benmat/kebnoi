@@ -159,14 +159,20 @@ func (m *Manager) Logout(ctx context.Context, refreshToken string) error {
 
 func (m *Manager) Middleware(c fiber.Ctx) error {
 	parts := strings.SplitN(strings.TrimSpace(c.Get("Authorization")), " ", 2)
-	if len(parts) != 2 || !strings.EqualFold(parts[0], "Bearer") || parts[1] == "" {
+	token := c.Cookies("kebnoi_session")
+	query := `s.refresh_token_hash=? AND s.revoked_at IS NULL AND s.expires_at>CURRENT_TIMESTAMP(3)`
+	if len(parts) == 2 && strings.EqualFold(parts[0], "Bearer") && parts[1] != "" {
+		token = parts[1]
+		query = `s.access_token_hash=? AND s.revoked_at IS NULL AND s.access_expires_at>CURRENT_TIMESTAMP(3)`
+	}
+	if token == "" {
 		return fiber.NewError(fiber.StatusUnauthorized, "sign in required")
 	}
 	var user User
 	err := m.db.QueryRowContext(c.Context(), `SELECT u.id,u.email,p.display_name
 		FROM kebnoi_sessions s JOIN kebnoi_users u ON u.id=s.user_id
 		JOIN kebnoi_profiles p ON p.id=u.id
-		WHERE s.access_token_hash=? AND s.revoked_at IS NULL AND s.access_expires_at>CURRENT_TIMESTAMP(3)`, tokenHash(parts[1])).Scan(&user.ID, &user.Email, &user.Name)
+		WHERE `+query, tokenHash(token)).Scan(&user.ID, &user.Email, &user.Name)
 	if err != nil {
 		return fiber.NewError(fiber.StatusUnauthorized, "invalid or expired session")
 	}
@@ -234,6 +240,45 @@ func (m *Manager) ChangePassword(ctx context.Context, userID, currentPassword, n
 	}
 	_, err = m.db.ExecContext(ctx, `UPDATE kebnoi_users SET password_hash=? WHERE id=?`, string(newHash), userID)
 	return err
+}
+
+func (m *Manager) EmailExists(ctx context.Context, email string) (bool, error) {
+	var id string
+	err := m.db.QueryRowContext(ctx, `SELECT id FROM kebnoi_users WHERE email=?`, strings.ToLower(strings.TrimSpace(email))).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	return err == nil, err
+}
+
+func (m *Manager) ResetPassword(ctx context.Context, email, password string) error {
+	if len(password) < 6 || len(password) > 72 {
+		return ErrInvalidInput
+	}
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return err
+	}
+	tx, err := m.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+	var userID string
+	err = tx.QueryRowContext(ctx, `SELECT id FROM kebnoi_users WHERE email=? FOR UPDATE`, strings.ToLower(strings.TrimSpace(email))).Scan(&userID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return ErrUserNotFound
+	}
+	if err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `UPDATE kebnoi_users SET password_hash=? WHERE id=?`, string(hash), userID); err != nil {
+		return err
+	}
+	if _, err = tx.ExecContext(ctx, `DELETE FROM kebnoi_sessions WHERE user_id=?`, userID); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (m *Manager) DeleteAccount(ctx context.Context, userID string) error {

@@ -4,24 +4,40 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/chn-benmat/backend/internal/auth"
 	"github.com/chn-benmat/backend/internal/store"
 	"github.com/gofiber/fiber/v3"
+	"github.com/gofiber/fiber/v3/middleware/limiter"
 )
 
 type handlers struct {
-	store *store.Store
-	auth  *auth.Manager
+	store        *store.Store
+	auth         *auth.Manager
+	secureCookie bool
 }
 
-func Register(app *fiber.App, data *store.Store, manager *auth.Manager) {
-	h := &handlers{store: data, auth: manager}
+func Register(app *fiber.App, data *store.Store, manager *auth.Manager, frontendOrigin string) {
+	h := &handlers{store: data, auth: manager, secureCookie: strings.HasPrefix(frontendOrigin, "https://")}
+	app.Use("/api", func(c fiber.Ctx) error {
+		origin := c.Get("Origin")
+		if origin != "" && origin != frontendOrigin {
+			return fiber.NewError(fiber.StatusForbidden, "origin not allowed")
+		}
+		if c.Method() != fiber.MethodGet && c.Method() != fiber.MethodHead && c.Method() != fiber.MethodOptions && c.Cookies(sessionCookie) != "" && origin != frontendOrigin {
+			return fiber.NewError(fiber.StatusForbidden, "origin required")
+		}
+		return c.Next()
+	})
 	app.Get("/api/health", func(c fiber.Ctx) error { return c.JSON(fiber.Map{"status": "ok"}) })
 	app.Post("/api/auth/signup", h.signUp)
 	app.Post("/api/auth/login", h.signIn)
 	app.Post("/api/auth/refresh", h.refresh)
 	app.Post("/api/auth/logout", h.signOut)
+	app.Post("/api/auth/forgot-password", limiter.New(limiter.Config{Max: 5, Expiration: 15 * time.Minute}), h.forgotPassword)
+	app.Post("/api/auth/reset-password", limiter.New(limiter.Config{Max: 10, Expiration: 15 * time.Minute}), h.resetPassword)
 	app.Get("/api/avatars/:id", h.getAvatar)
 	api := app.Group("/api", manager.Middleware)
 	api.Patch("/auth/credentials", h.updateCredentials)

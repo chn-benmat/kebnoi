@@ -38,9 +38,9 @@ func main() {
 	app := fiber.New(fiber.Config{AppName: "Kebnoi API", BodyLimit: 2 << 20, ErrorHandler: httpapi.ErrorHandler})
 	app.Use(recover.New(), logger.New())
 	app.Get("/uploads/avatars/*", static.New("./uploads/avatars"))
-	app.Use(cors.New(cors.Config{AllowOrigins: []string{cfg.FrontendOrigin}, AllowMethods: []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"}, AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"}}))
+	app.Use(cors.New(cors.Config{AllowOrigins: []string{cfg.FrontendOrigin}, AllowMethods: []string{"GET", "POST", "PATCH", "DELETE", "OPTIONS"}, AllowHeaders: []string{"Origin", "Content-Type", "Accept", "Authorization"}, AllowCredentials: true}))
 	data := store.New(db)
 	manager := auth.New(db)
-	httpapi.Register(app, data, manager)
+	httpapi.Register(app, data, manager, cfg.FrontendOrigin)
 	log.Fatal(app.Listen(":" + cfg.Port))
 }

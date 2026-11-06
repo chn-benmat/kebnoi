@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/chn-benmat/backend/internal/auth"
@@ -15,7 +16,46 @@ type authRequest struct {
 	Password        string `json:"password"`
 	CurrentPassword string `json:"current_password"`
 	NewPassword     string `json:"new_password"`
-	RefreshToken    string `json:"refresh_token"`
+}
+
+const sessionCookie = "kebnoi_session"
+
+func (h *handlers) setSessionCookie(c fiber.Ctx, token string, maxAge int) {
+	sameSite := "Lax"
+	if h.secureCookie {
+		sameSite = "None"
+	}
+	c.Cookie(&fiber.Cookie{Name: sessionCookie, Value: token, Path: "/api", MaxAge: maxAge, HTTPOnly: true, Secure: h.secureCookie, SameSite: sameSite})
+}
+
+func (h *handlers) forgotPassword(c fiber.Ctx) error {
+	var in authRequest
+	if c.Bind().JSON(&in) != nil || !validEmail(in.Email) {
+		return fiber.NewError(fiber.StatusBadRequest, "กรุณาตรวจสอบอีเมล")
+	}
+	exists, err := h.auth.EmailExists(c.Context(), in.Email)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fiber.NewError(fiber.StatusNotFound, "ไม่พบบัญชีที่ใช้อีเมลนี้")
+	}
+	return c.SendStatus(fiber.StatusNoContent)
+}
+
+func (h *handlers) resetPassword(c fiber.Ctx) error {
+	var in authRequest
+	if c.Bind().JSON(&in) != nil || !validEmail(in.Email) || len(in.NewPassword) < 6 || len(in.NewPassword) > 72 {
+		return fiber.NewError(fiber.StatusBadRequest, "กรุณาตรวจสอบอีเมลและรหัสผ่านใหม่ความยาว 6–72 ไบต์")
+	}
+	err := h.auth.ResetPassword(c.Context(), in.Email, in.NewPassword)
+	if errors.Is(err, auth.ErrUserNotFound) {
+		return fiber.NewError(fiber.StatusNotFound, "ไม่พบบัญชีที่ใช้อีเมลนี้")
+	}
+	if err != nil {
+		return err
+	}
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *handlers) signUp(c fiber.Ctx) error {
@@ -36,7 +76,8 @@ func (h *handlers) signUp(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.Status(fiber.StatusCreated).JSON(session)
+	h.setSessionCookie(c, session.RefreshToken, int((30 * 24 * time.Hour).Seconds()))
+	return c.Status(fiber.StatusCreated).JSON(fiber.Map{})
 }
 
 func (h *handlers) signIn(c fiber.Ctx) error {
@@ -51,32 +92,31 @@ func (h *handlers) signIn(c fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(session)
+	h.setSessionCookie(c, session.RefreshToken, int((30 * 24 * time.Hour).Seconds()))
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *handlers) refresh(c fiber.Ctx) error {
-	var in authRequest
-	if c.Bind().JSON(&in) != nil || in.RefreshToken == "" {
+	token := c.Cookies(sessionCookie)
+	if token == "" {
 		return fiber.NewError(fiber.StatusUnauthorized, "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่")
 	}
-	session, err := h.auth.Refresh(c.Context(), in.RefreshToken)
+	session, err := h.auth.Refresh(c.Context(), token)
 	if errors.Is(err, auth.ErrInvalidCredentials) {
 		return fiber.NewError(fiber.StatusUnauthorized, "เซสชันหมดอายุ กรุณาเข้าสู่ระบบใหม่")
 	}
 	if err != nil {
 		return err
 	}
-	return c.JSON(session)
+	h.setSessionCookie(c, session.RefreshToken, int((30 * 24 * time.Hour).Seconds()))
+	return c.SendStatus(fiber.StatusNoContent)
 }
 
 func (h *handlers) signOut(c fiber.Ctx) error {
-	var in authRequest
-	if c.Bind().JSON(&in) != nil {
-		return fiber.NewError(fiber.StatusBadRequest, "คำขอไม่ถูกต้อง")
-	}
-	if err := h.auth.Logout(c.Context(), in.RefreshToken); err != nil {
+	if err := h.auth.Logout(c.Context(), c.Cookies(sessionCookie)); err != nil {
 		return err
 	}
+	h.setSessionCookie(c, "", -1)
 	return c.SendStatus(fiber.StatusNoContent)
 }
 

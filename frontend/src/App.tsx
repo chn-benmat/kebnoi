@@ -7,13 +7,13 @@ import {
 } from "react";
 import {
   ArrowDownLeft,
+  ArrowLeft,
   ArrowRight,
   ArrowUpRight,
+  CalendarDays,
   Check,
-  ChevronDown,
   Copy,
   House,
-  LockKeyhole,
   LogOut,
   Pencil,
   Plus,
@@ -26,7 +26,14 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Calendar } from "@/components/ui/calendar";
 import { Input } from "@/components/ui/input";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { th } from "date-fns/locale";
 import {
   Dialog,
   DialogContent,
@@ -46,6 +53,7 @@ import {
   deleteTransaction,
   emptyDatabase,
   hasSession,
+  restoreSession,
   leaveFamily as leaveFamilyApi,
   signOut,
   updateCredentials,
@@ -64,7 +72,6 @@ import {
   type Transaction,
   type User,
 } from "./domain/model";
-import "./App.css";
 
 type Page = "dashboard" | "transactions" | "family" | "profile" | "security";
 type Confirmation =
@@ -79,9 +86,15 @@ const dateText = (date: string) =>
   });
 function Avatar({ user, size = "" }: { user?: User; size?: string }) {
   return (
-    <span className={`avatar ${size}`}>
+    <span
+      className={`inline-grid shrink-0 place-items-center overflow-hidden rounded-full border-2 border-white bg-(--color-blue-light) font-extrabold text-(--color-blue-dark) shadow-[0_0_0_1px_var(--color-line)] ${size === "large" ? "size-[72px] text-[27px]" : "size-[37px]"}`}
+    >
       {user?.avatar ? (
-        <img src={assetURL(user.avatar)} alt="" />
+        <img
+          className="size-full object-cover"
+          src={assetURL(user.avatar)}
+          alt=""
+        />
       ) : (
         user?.name.slice(0, 1) || "?"
       )}
@@ -102,6 +115,10 @@ function TransactionDialog({
   ) => void;
 }) {
   const [kind, setKind] = useState<Kind>(initial?.kind || "expense");
+  const [date, setDate] = useState(
+    () => new Date(`${initial?.date || localDate()}T12:00:00`),
+  );
+  const [calendarOpen, setCalendarOpen] = useState(false);
   function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -118,7 +135,7 @@ function TransactionDialog({
         if (!next) close();
       }}
     >
-      <DialogContent className="app-dialog">
+      <DialogContent className="app-dialog w-[calc(100%-32px)] max-w-[440px] p-[25px] [&_[data-slot=dialog-title]]:text-[21px] [&_[data-slot=dialog-title]]:font-bold [&_[data-slot=dialog-description]]:text-xs [&_[data-slot=dialog-description]]:text-(--color-ink-soft)">
         <DialogHeader>
           <DialogTitle>
             {initial ? "แก้ไขรายการ" : "เพิ่มรายการใหม่"}
@@ -128,35 +145,91 @@ function TransactionDialog({
           </DialogDescription>
         </DialogHeader>
         <form
-          className="form-stack"
+          className="form-stack flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:gap-[7px] [&_label]:text-sm [&_label]:font-bold [&_label]:text-(--color-ink) [&_input:not([type=hidden])]:min-h-[46px] [&_input:not([type=hidden])]:bg-white [&_input:not([type=hidden])]:text-base [&_.primary-button]:w-full"
           onSubmit={submit}
           key={initial?.id || "new"}
         >
-          <div className="segmented">
+          <div
+            className="segmented flex gap-[3px] rounded-[9px] border border-(--color-line) bg-white p-1 [&_button]:min-h-10 [&_button]:flex-1 [&_button]:rounded-md [&_button]:bg-transparent [&_button]:px-[13px] [&_button]:py-2 [&_button]:text-[13px] [&_button]:font-bold [&_button]:whitespace-nowrap [&_button]:text-(--color-muted) [&_button.active]:bg-(--color-blue-pale) [&_button.active]:text-(--color-blue) transaction-kind [&_button]:flex [&_button]:items-center [&_button]:justify-center [&_button]:gap-1.5 [&_button.expense]:text-red-700 [&_button.income]:text-sky-700 [&_button.expense.active]:bg-red-700 [&_button.expense.active]:text-white [&_button.income.active]:bg-sky-700 [&_button.income.active]:text-white"
+            role="group"
+            aria-label="ประเภทรายการ"
+          >
             <button
               type="button"
-              className={kind === "expense" ? "active" : ""}
+              className={`expense ${kind === "expense" ? "active" : ""}`}
+              aria-pressed={kind === "expense"}
               onClick={() => setKind("expense")}
             >
-              ↗ รายจ่าย
+              <ArrowUpRight size={17} aria-hidden="true" /> รายจ่าย
+              {kind === "expense" && <Check size={16} aria-hidden="true" />}
             </button>
             <button
               type="button"
-              className={kind === "income" ? "active" : ""}
+              className={`income ${kind === "income" ? "active" : ""}`}
+              aria-pressed={kind === "income"}
               onClick={() => setKind("income")}
             >
-              ↙ รายรับ
+              <ArrowDownLeft size={17} aria-hidden="true" /> รายรับ
+              {kind === "income" && <Check size={16} aria-hidden="true" />}
             </button>
           </div>
-          <label>
-            วันที่
-            <Input
-              type="date"
-              name="date"
-              defaultValue={initial?.date || localDate()}
-              required
-            />
-          </label>
+          <div className="flex flex-col gap-[7px] text-sm font-semibold">
+            <span id="transaction-date-label">วันที่</span>
+            <input type="hidden" name="date" value={localDate(date)} />
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="h-10 w-full justify-between"
+                  />
+                }
+                aria-labelledby="transaction-date-label transaction-date-value"
+              >
+                <span id="transaction-date-value">
+                  {date.toLocaleDateString("th-TH", {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  })}
+                </span>
+                <CalendarDays data-icon="inline-end" />
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-auto p-2">
+                <Calendar
+                  mode="single"
+                  required
+                  selected={date}
+                  defaultMonth={date}
+                  locale={th}
+                  formatters={{
+                    formatCaption: (month) =>
+                      month.toLocaleDateString("th-TH", {
+                        month: "long",
+                        year: "numeric",
+                      }),
+                  }}
+                  onSelect={(selected) => {
+                    setDate(selected);
+                    setCalendarOpen(false);
+                  }}
+                />
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    setDate(new Date());
+                    setCalendarOpen(false);
+                  }}
+                >
+                  วันนี้
+                </Button>
+              </PopoverContent>
+            </Popover>
+          </div>
           <label>
             {kind === "income" ? "ได้จากอะไร" : "จ่ายค่าอะไร"}
             <Input
@@ -174,6 +247,7 @@ function TransactionDialog({
             <Input
               name="amount"
               type="number"
+              className="[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               min="0.01"
               step="0.01"
               placeholder="0.00"
@@ -181,7 +255,10 @@ function TransactionDialog({
               required
             />
           </label>
-          <Button type="submit" className="primary-button">
+          <Button
+            type="submit"
+            className="primary-button min-h-[46px] gap-2 rounded-xl bg-(--color-blue) px-[18px] text-sm font-bold text-white hover:bg-(--color-blue-dark)"
+          >
             บันทึกรายการ <Check data-icon="inline-end" />
           </Button>
         </form>
@@ -216,8 +293,16 @@ function App() {
     }
   }
   useEffect(() => {
-    if (hasSession()) void reload();
-    else setDb({ ...emptyDatabase(), loading: false });
+    void restoreSession()
+      .then((data) => {
+        setDb({ ...(data ?? emptyDatabase()), loading: false });
+      })
+      .catch((error: unknown) => {
+        setDb({ ...emptyDatabase(), loading: false });
+        setRequestError(
+          error instanceof Error ? error.message : "เชื่อมต่อระบบไม่สำเร็จ",
+        );
+      });
   }, []);
   async function runRequest(action: () => Promise<unknown>) {
     setRequestError("");
@@ -255,14 +340,17 @@ function App() {
   );
   if (db.loading && !user)
     return (
-      <div className="setup-screen">
+      <div className="min-h-screen bg-(--color-blue-pale) p-[30px]">
         <Brand />
-        <div className="setup-card">
-          <span className="eyebrow">เก็บหน่อย</span>
+        <div className="mx-auto my-[50px] max-w-[460px] rounded-(--radius-card) border border-(--color-line) bg-white p-8">
+          <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+            เก็บหน่อย
+          </span>
           <h1>กำลังเชื่อมต่อข้อมูล…</h1>
         </div>
       </div>
     );
+
   if (!user)
     return (
       <Auth
@@ -278,6 +366,7 @@ function App() {
         logout={() => void runRequest(signOut)}
       />
     );
+
   if (!family)
     return (
       <FamilySetup
@@ -290,6 +379,7 @@ function App() {
         logout={() => void runRequest(signOut)}
       />
     );
+
   const income = filtered
     .filter((item) => item.kind === "income")
     .reduce((sum, item) => sum + item.amount, 0);
@@ -335,8 +425,7 @@ function App() {
     }
     void runRequest(async () => {
       await updateProfile(name);
-      if (email !== user!.email)
-        await updateCredentials(email);
+      if (email !== user!.email) await updateCredentials(email);
       setProfileMessage("บันทึกโปรไฟล์เรียบร้อยแล้ว");
     });
   }
@@ -345,7 +434,10 @@ function App() {
     if (!file) return;
     setProfileError("");
     setProfileMessage("");
-    if (!file.type.match(/^image\/(png|jpeg|gif)$/) || file.size > 1024 * 1024) {
+    if (
+      !file.type.match(/^image\/(png|jpeg|gif)$/) ||
+      file.size > 1024 * 1024
+    ) {
       setProfileError("เลือกรูป PNG, JPEG หรือ GIF ขนาดไม่เกิน 1 MB");
       e.target.value = "";
       return;
@@ -355,11 +447,15 @@ function App() {
       const updated = await uploadProfileAvatar(file);
       setDb((current) => ({
         ...current,
-        users: current.users.map((item) => item.id === updated.id ? updated : item),
+        users: current.users.map((item) =>
+          item.id === updated.id ? updated : item,
+        ),
       }));
       setProfileMessage("อัปโหลดรูปโปรไฟล์เรียบร้อยแล้ว");
     } catch (error) {
-      setProfileError(error instanceof Error ? error.message : "อัปโหลดรูปโปรไฟล์ไม่สำเร็จ");
+      setProfileError(
+        error instanceof Error ? error.message : "อัปโหลดรูปโปรไฟล์ไม่สำเร็จ",
+      );
     } finally {
       setAvatarBusy(false);
       e.target.value = "";
@@ -388,7 +484,9 @@ function App() {
       form.reset();
       setPasswordMessage("เปลี่ยนรหัสผ่านเรียบร้อยแล้ว");
     } catch (error) {
-      setPasswordError(error instanceof Error ? error.message : "เปลี่ยนรหัสผ่านไม่สำเร็จ");
+      setPasswordError(
+        error instanceof Error ? error.message : "เปลี่ยนรหัสผ่านไม่สำเร็จ",
+      );
     } finally {
       setPasswordBusy(false);
     }
@@ -401,13 +499,17 @@ function App() {
         void runRequest(() => deleteTransaction(target.id));
     } else if (confirmation.kind === "account") {
       setDb((current) => ({ ...current, loading: true }));
-      void deleteAccount().then(() => {
-        setRequestError("");
-        setDb({ ...emptyDatabase(), loading: false });
-      }).catch((error) => {
-        setRequestError(error instanceof Error ? error.message : "ลบบัญชีไม่สำเร็จ");
-        setDb((current) => ({ ...current, loading: false }));
-      });
+      void deleteAccount()
+        .then(() => {
+          setRequestError("");
+          setDb({ ...emptyDatabase(), loading: false });
+        })
+        .catch((error) => {
+          setRequestError(
+            error instanceof Error ? error.message : "ลบบัญชีไม่สำเร็จ",
+          );
+          setDb((current) => ({ ...current, loading: false }));
+        });
     } else {
       void runRequest(leaveFamilyApi);
       setPage("dashboard");
@@ -428,19 +530,21 @@ function App() {
     { key: "transactions" as const, label: "รายการทั้งหมด", icon: ReceiptText },
     { key: "family" as const, label: "ครอบครัว", icon: Users },
     { key: "profile" as const, label: "โปรไฟล์", icon: UserRound },
-    { key: "security" as const, label: "รหัสผ่าน", icon: LockKeyhole },
   ];
+
   const list = page === "dashboard" ? filtered.slice(0, 5) : transactions;
   return (
-    <div className="app-shell">
-      <aside className="sidebar">
+    <div className="flex min-h-screen bg-(--color-canvas)">
+      <aside className="fixed inset-y-0 left-0 z-10 flex w-[240px] flex-col border-r border-(--color-line) bg-white px-[18px] pt-7 pb-[18px] max-[1100px]:w-[205px] max-[768px]:hidden">
         <Brand />
-        <div className="nav-caption">พื้นที่ของเรา</div>
-        <nav>
+        <div className="mx-3 mt-9 mb-3 text-xs font-bold text-(--color-muted)">
+          พื้นที่ของเรา
+        </div>
+        <nav className="grid gap-[5px]">
           {nav.map((item) => (
             <button
               key={item.key}
-              className={`nav-item ${page === item.key ? "active" : ""}`}
+              className={`relative flex min-h-12 w-full items-center gap-[13px] rounded-xl px-[13px] py-3 text-left text-sm font-semibold whitespace-nowrap hover:bg-(--color-blue-pale) hover:text-(--color-blue) ${page === item.key || (page === "security" && item.key === "profile") ? "bg-(--color-blue-pale) text-(--color-blue)" : "bg-transparent text-(--color-ink-soft)"}`}
               onClick={() => {
                 setPage(item.key);
                 setProfileMessage("");
@@ -449,42 +553,27 @@ function App() {
             >
               <item.icon size={19} />
               <span>{item.label}</span>
-              {page === item.key && <span className="nav-indicator" />}
+              {(page === item.key ||
+                (page === "security" && item.key === "profile")) && (
+                <span className="ml-auto size-1.5 rounded-full bg-(--color-blue)" />
+              )}
             </button>
           ))}
         </nav>
-        <div className="sidebar-bottom">
-          <div className="sidebar-tip">
-            <span className="tip-star">✦</span>
-            <strong>ค่อย ๆ เก็บ ค่อย ๆ โต</strong>
-            <p>ทุกบาทเล็ก ๆ มีความหมายกับบ้านของเราเสมอ</p>
-            <PixelPal small />
-          </div>
-          <button className="sidebar-user" onClick={() => setPage("profile")}>
-            <Avatar user={user} />
-            <span>
-              <strong>{user.name}</strong>
-              <small>สมาชิกครอบครัว</small>
-            </span>
-            <ChevronDown size={16} />
-          </button>
-          <button className="logout" onClick={() => void runRequest(signOut)}>
-            <LogOut size={16} /> ออกจากระบบ
-          </button>
-        </div>
       </aside>
-      <main className="main-area">
-        <header className="topbar">
-          <div className="breadcrumb">
+      <main className="ml-[240px] min-w-0 w-[calc(100%-240px)] max-[1100px]:ml-[205px] max-[1100px]:w-[calc(100%-205px)] max-[768px]:ml-0 max-[768px]:w-full max-[768px]:pb-[82px]">
+        <header className="flex h-[66px] items-center justify-between border-b border-(--color-line) bg-white px-[42px] max-[1100px]:px-7 max-[768px]:h-[58px] max-[768px]:px-5">
+          <div className="text-xs text-(--color-muted) [&_span]:px-2.5 [&_strong]:text-(--color-ink-soft)">
             บ้านของเรา <span>/</span>{" "}
-            <strong>{nav.find((item) => item.key === page)?.label}</strong>
+            <strong>
+              {page === "security"
+                ? "โปรไฟล์ / เปลี่ยนรหัสผ่าน"
+                : nav.find((item) => item.key === page)?.label}
+            </strong>
           </div>
-          <div className="topbar-right">
-            <span className="demo-pill">
-              <span /> เชื่อมต่อแล้ว
-            </span>
+          <div className="flex items-center gap-5">
             <button
-              className="top-avatar"
+              className="bg-transparent"
               onClick={() => setPage("profile")}
               aria-label="เปิดโปรไฟล์"
             >
@@ -492,11 +581,11 @@ function App() {
             </button>
           </div>
         </header>
-        <div className="mobile-nav">
+        <div className="fixed right-0 bottom-0 left-0 z-20 hidden grid-cols-4 border-t border-(--color-line) bg-white px-[5px] pt-[7px] pb-[max(7px,env(safe-area-inset-bottom))] max-[768px]:grid">
           {nav.map((item) => (
             <button
               key={item.key}
-              className={page === item.key ? "active" : ""}
+              className={`flex min-h-12 flex-col items-center gap-[3px] bg-transparent py-1 text-[11px] whitespace-nowrap ${page === item.key || (page === "security" && item.key === "profile") ? "text-(--color-blue)" : "text-(--color-muted)"}`}
               onClick={() => setPage(item.key)}
             >
               <item.icon size={18} />
@@ -504,42 +593,71 @@ function App() {
             </button>
           ))}
         </div>
-        <div className="page-content">
+        <div className="mx-auto max-w-[1320px] px-[42px] pt-8 pb-6 max-[1100px]:p-7 max-[768px]:px-[18px] max-[768px]:py-6">
           {requestError && (
-            <p className="form-error" role="alert">
+            <p
+              className="form-error !text-[11px] !text-(--color-red)"
+              role="alert"
+            >
               {requestError}
             </p>
           )}
           {page === "dashboard" && (
             <>
-              <div className="page-heading">
+              <div className="page-heading mb-6 flex items-end justify-between gap-4 max-[520px]:flex-wrap max-[520px]:items-start max-[520px]:gap-3.5 [&_h1]:mt-1.5 [&_h1]:text-[28px] [&_h1]:leading-normal [&_h1]:font-bold [&_p]:mt-1.5 [&_p]:text-sm [&_p]:text-(--color-ink-soft) max-[520px]:[&_h1]:text-[25px] max-[520px]:[&_p]:text-[13px]">
                 <div>
-                  <div className="hello-line">
+                  <div className="hello-line block text-xs font-semibold text-(--color-blue)">
                     เรื่องเงินของครอบครัว
                   </div>
-                  <h1>
-                    สวัสดี, {user.name}
-                  </h1>
+                  <h1>สวัสดี, {user.name}</h1>
                   <p>รู้ว่าเงินเข้าเท่าไหร่ ใช้ไปเท่าไหร่ ในหน้าเดียว</p>
                 </div>
-                <Button className="primary-button add-button" onClick={openNew}>
+                <Button
+                  className="primary-button min-h-[46px] gap-2 rounded-xl bg-(--color-blue) px-[18px] text-sm font-bold text-white hover:bg-(--color-blue-dark) add-button min-w-36 max-[520px]:w-full max-[520px]:min-w-0 max-[520px]:px-[11px]"
+                  onClick={openNew}
+                >
                   <Plus data-icon="inline-start" /> เพิ่มรายการ
                 </Button>
               </div>
-              <section className="family-overview" aria-label="ครอบครัวของคุณ">
-                <span className="family-overview-icon"><House size={20} /></span>
-                <div><strong>{family.name}</strong><span>บันทึกรายรับรายจ่ายร่วมกัน · {members.length} คน</span></div>
-                <button className="view-all" onClick={() => setPage("family")}>ดูครอบครัว <ArrowRight size={16} /></button>
-              </section>
-              <div className="section-heading summary-heading">
-                <div>
-                  <span className="eyebrow">สรุปรายรับรายจ่าย</span>
+              <section className="welcome-banner relative flex min-h-[215px] justify-between overflow-hidden rounded-(--radius-card) border border-(--color-blue-light) bg-(--color-blue-light) max-[520px]:min-h-[200px]">
+                <div className="banner-copy z-[2] px-[33px] py-[29px] max-[520px]:px-[19px] max-[520px]:py-[23px] [&_h2]:mt-[13px] [&_h2]:mb-1.5 [&_h2]:text-[25px] [&_h2]:leading-[1.35] [&_h2]:font-bold [&_h2]:text-(--color-blue-dark) [&_h2_span]:text-(--color-ink) [&_p]:text-[11px] [&_p]:text-(--color-ink-soft) [&_button]:mt-[15px] [&_button]:flex [&_button]:items-center [&_button]:gap-2 [&_button]:bg-transparent [&_button]:p-0 [&_button]:text-[11px] [&_button]:font-extrabold [&_button]:text-(--color-blue-dark) max-[520px]:[&_h2]:text-[19px] max-[520px]:[&_p]:max-w-[190px] max-[520px]:[&_p]:text-[10px]">
+                  <span className="banner-chip inline-block bg-white px-[9px] py-1.5 font-(family-name:--font-number) text-[8px] font-bold tracking-[0.09em] text-(--color-blue)">
+                    ✦ &nbsp; LITTLE STEPS, BIG DREAMS
+                  </span>
                   <h2>
-                    ภาพรวม · {periodLabel}
+                    เก็บเรื่องเล็ก ๆ<br />
+                    <span>ให้เป็นเรื่องใหญ่ไปด้วยกัน</span>
                   </h2>
+                  <p>บันทึกทุกการใช้จ่าย แล้วค่อย ๆ เติบโตไปพร้อมกันนะ</p>
+                  <button onClick={() => setPage("family")}>
+                    ไปดูครอบครัวของเรา <ArrowRight size={16} />
+                  </button>
+                </div>
+                <div className="banner-art absolute right-[8%] bottom-[-19px] h-[200px] w-[260px] max-[1100px]:right-[2%] max-[520px]:right-[-8px] max-[520px]:bottom-[-22px] max-[520px]:origin-bottom-right max-[520px]:scale-55 [&_.pixel-pal]:absolute [&_.pixel-pal]:right-[45px] [&_.pixel-pal]:bottom-2 [&_.pixel-pal]:origin-bottom [&_.pixel-pal]:scale-95">
+                  <span className="banner-star absolute text-[26px] text-(--color-blue) star-a top-5 right-[30px]">
+                    ✦
+                  </span>
+                  <span className="banner-star absolute text-[26px] text-(--color-blue) star-b top-[35px] left-[30px] text-lg">
+                    ✳
+                  </span>
+                  <span className="banner-cloud absolute h-3 w-[50px] bg-white opacity-75 shadow-[12px_-8px_0_white] cloud-a top-[65px] left-2.5" />
+                  <span className="banner-cloud absolute h-3 w-[50px] bg-white opacity-75 shadow-[12px_-8px_0_white] cloud-b top-[15px] right-2 scale-70" />
+                  <div className="banner-coin absolute bottom-[43px] left-[22px] grid size-[45px] -rotate-12 place-items-center border-4 border-(--color-blue-dark) bg-white text-2xl font-bold text-(--color-blue-dark)">
+                    ฿
+                  </div>
+                  <PixelPal />
+                </div>
+                <span className="banner-grid absolute right-0 bottom-0 h-7 w-[43%] opacity-[0.08] bg-[repeating-linear-gradient(90deg,var(--color-blue)_0_2px,transparent_2px_24px)]" />
+              </section>
+              <div className="section-heading flex items-center justify-between gap-4 [&_h2]:mt-[5px] [&_h2]:text-xl [&_h2]:font-bold summary-heading mt-[26px] mb-[15px] max-[520px]:flex-col max-[520px]:items-start">
+                <div>
+                  <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+                    สรุปรายรับรายจ่าย
+                  </span>
+                  <h2>ภาพรวม · {periodLabel}</h2>
                 </div>
                 <div
-                  className="period-select"
+                  className="period-select flex gap-[3px] rounded-[9px] border border-(--color-line) bg-white p-1 max-[520px]:w-full [&_button]:min-h-10 [&_button]:rounded-md [&_button]:bg-transparent [&_button]:px-[13px] [&_button]:py-2 [&_button]:text-[13px] [&_button]:font-bold [&_button]:whitespace-nowrap [&_button]:text-(--color-muted) [&_button.active]:bg-(--color-blue-pale) [&_button.active]:text-(--color-blue) max-[520px]:[&_button]:flex-1"
                   role="group"
                   aria-label="เลือกช่วงเวลา"
                 >
@@ -561,77 +679,118 @@ function App() {
                   ))}
                 </div>
               </div>
-              <div className="stats-grid">
-                <div className={`stat-card balance-card ${income - expense < 0 ? "is-negative" : ""}`}>
-                  <div className="stat-top"><span className="stat-icon family-icon"><Wallet size={20} /></span><span className="stat-meta">{periodLabel}</span></div>
-                  <span className="stat-label">ส่วนต่างรายรับ − รายจ่าย</span>
+              <div className="stats-grid grid grid-cols-3 gap-[15px] max-[1100px]:gap-2.5 max-[520px]:grid-cols-2">
+                <div
+                  className={`stat-card min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-[22px] shadow-[0_3px_14px_#16345104] max-[1100px]:p-4 [&_strong]:my-[5px] [&_strong]:block [&_strong]:font-(family-name:--font-number) [&_strong]:text-[clamp(24px,2.6vw,36px)] [&_strong]:font-bold [&_strong]:tracking-[-0.035em] [&_strong]:[overflow-wrap:anywhere] [&_small]:block [&_small]:text-xs [&_small]:text-(--color-muted) max-[1100px]:[&_small]:text-[11px] max-[520px]:[&_strong]:text-[23px] balance-card border-green-800 bg-linear-to-br from-green-800 to-emerald-700 text-white max-[520px]:col-span-full [&_.stat-label]:text-green-50 [&_.stat-meta]:text-green-50 [&_small]:text-green-50 [&_.stat-icon]:bg-white/15 [&_.stat-icon]:text-white max-[520px]:[&_strong]:text-[34px] [&.is-negative]:border-red-800 [&.is-negative]:from-red-800 [&.is-negative]:to-red-700 ${income - expense < 0 ? "is-negative" : ""}`}
+                >
+                  <div className="stat-top mb-4 flex items-center justify-between max-[520px]:mb-3">
+                    <span className="stat-icon grid size-[38px] place-items-center rounded-[10px] [&.income]:bg-(--color-income-pale) [&.income]:text-(--color-income) [&.expense]:bg-(--color-expense-pale) [&.expense]:text-(--color-expense) [&.family-icon]:bg-(--color-blue-pale) [&.family-icon]:text-(--color-blue) family-icon">
+                      <Wallet size={20} />
+                    </span>
+                    <span className="stat-meta text-xs text-(--color-muted)">
+                      {periodLabel}
+                    </span>
+                  </div>
+                  <span className="stat-label block text-sm text-(--color-ink-soft) max-[520px]:text-[13px]">
+                    ส่วนต่างรายรับ − รายจ่าย
+                  </span>
                   <strong>฿{money(income - expense)}</strong>
-                  <small>{income === 0 && expense === 0 ? "เริ่มบันทึกเพื่อดูสรุปของครอบครัว" : income >= expense ? "รายรับมากกว่าหรือเท่ากับรายจ่าย" : "รายจ่ายมากกว่ารายรับในช่วงนี้"}</small>
+                  <small>
+                    {income === 0 && expense === 0
+                      ? "เริ่มบันทึกเพื่อดูสรุปของครอบครัว"
+                      : income >= expense
+                        ? "รายรับมากกว่าหรือเท่ากับรายจ่าย"
+                        : "รายจ่ายมากกว่ารายรับในช่วงนี้"}
+                  </small>
                 </div>
-                <div className="stat-card income-card">
-                  <div className="stat-top"><span className="stat-icon income"><TrendingUp size={20} /></span><span className="stat-meta">{periodLabel}</span></div>
-                  <span className="stat-label">รายรับรวม</span>
+                <div className="stat-card min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-[22px] shadow-[0_3px_14px_#16345104] max-[1100px]:p-4 [&_strong]:my-[5px] [&_strong]:block [&_strong]:font-(family-name:--font-number) [&_strong]:text-[clamp(24px,2.6vw,36px)] [&_strong]:font-bold [&_strong]:tracking-[-0.035em] [&_strong]:[overflow-wrap:anywhere] [&_small]:block [&_small]:text-xs [&_small]:text-(--color-muted) max-[1100px]:[&_small]:text-[11px] max-[520px]:[&_strong]:text-[23px] income-card border-sky-200 bg-linear-to-br from-white to-(--color-income-pale) [&_strong]:text-(--color-income)">
+                  <div className="stat-top mb-4 flex items-center justify-between max-[520px]:mb-3">
+                    <span className="stat-icon grid size-[38px] place-items-center rounded-[10px] [&.income]:bg-(--color-income-pale) [&.income]:text-(--color-income) [&.expense]:bg-(--color-expense-pale) [&.expense]:text-(--color-expense) [&.family-icon]:bg-(--color-blue-pale) [&.family-icon]:text-(--color-blue) income">
+                      <TrendingUp size={20} />
+                    </span>
+                    <span className="stat-meta text-xs text-(--color-muted)">
+                      {periodLabel}
+                    </span>
+                  </div>
+                  <span className="stat-label block text-sm text-(--color-ink-soft) max-[520px]:text-[13px]">
+                    รายรับรวม
+                  </span>
                   <strong>฿{money(income)}</strong>
                   <small>เงินที่ครอบครัวได้รับในช่วงนี้</small>
                 </div>
-                <div className="stat-card expense-card">
-                  <div className="stat-top"><span className="stat-icon expense"><TrendingDown size={20} /></span><span className="stat-meta">{periodLabel}</span></div>
-                  <span className="stat-label">รายจ่ายรวม</span>
+                <div className="stat-card min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-[22px] shadow-[0_3px_14px_#16345104] max-[1100px]:p-4 [&_strong]:my-[5px] [&_strong]:block [&_strong]:font-(family-name:--font-number) [&_strong]:text-[clamp(24px,2.6vw,36px)] [&_strong]:font-bold [&_strong]:tracking-[-0.035em] [&_strong]:[overflow-wrap:anywhere] [&_small]:block [&_small]:text-xs [&_small]:text-(--color-muted) max-[1100px]:[&_small]:text-[11px] max-[520px]:[&_strong]:text-[23px] expense-card border-red-200 bg-linear-to-br from-white to-(--color-expense-pale) [&_strong]:text-(--color-expense)">
+                  <div className="stat-top mb-4 flex items-center justify-between max-[520px]:mb-3">
+                    <span className="stat-icon grid size-[38px] place-items-center rounded-[10px] [&.income]:bg-(--color-income-pale) [&.income]:text-(--color-income) [&.expense]:bg-(--color-expense-pale) [&.expense]:text-(--color-expense) [&.family-icon]:bg-(--color-blue-pale) [&.family-icon]:text-(--color-blue) expense">
+                      <TrendingDown size={20} />
+                    </span>
+                    <span className="stat-meta text-xs text-(--color-muted)">
+                      {periodLabel}
+                    </span>
+                  </div>
+                  <span className="stat-label block text-sm text-(--color-ink-soft) max-[520px]:text-[13px]">
+                    รายจ่ายรวม
+                  </span>
                   <strong>฿{money(expense)}</strong>
                   <small>เงินที่ครอบครัวใช้ไปในช่วงนี้</small>
                 </div>
               </div>
-              <div className="dashboard-grid">
-                <section className="panel chart-panel">
-                  <div className="panel-heading">
+              <div className="dashboard-grid mt-5 grid grid-cols-[minmax(0,1.8fr)_minmax(230px,1fr)] gap-[18px] max-[1100px]:grid-cols-1">
+                <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] chart-panel border-blue-100 bg-linear-to-b from-[#f5faff] to-white [&_.panel-heading]:flex-wrap">
+                  <div className="panel-heading flex items-center justify-between gap-4 max-[520px]:gap-2.5 [&_h2]:text-[17px] [&_h2]:leading-normal [&_h2]:font-bold [&_p]:mt-[5px] [&_p]:text-xs [&_p]:text-(--color-muted) max-[520px]:[&_h2]:text-base">
                     <div>
                       <h2>เงินเข้า เงินออก</h2>
                       <p>ความเคลื่อนไหวของครอบครัว · {periodLabel}</p>
                     </div>
-                    <div className="legend">
+                    <div className="legend flex gap-3 text-xs whitespace-nowrap text-(--color-ink-soft) [&_span]:flex [&_span]:items-center [&_span]:gap-[5px] [&_i]:h-0 [&_i]:w-[22px] [&_i]:border-t-[3px]">
                       <span>
-                        <i className="legend-income" />
+                        <i className="legend-income border-(--color-chart-income)" />
                         รายรับ
                       </span>
                       <span>
-                        <i className="legend-expense" />
+                        <i className="legend-expense border-dashed border-(--color-chart-expense)" />
                         รายจ่าย
                       </span>
                     </div>
                   </div>
                   <Chart transactions={filtered} period={period} />
                   {period === "today" && (
-                    <small className="chart-note">
+                    <small className="chart-note mt-[5px] block text-[10px] text-(--color-muted)">
                       วันนี้แสดงตามเวลาที่บันทึกรายการ
                     </small>
                   )}
                 </section>
-                <section className="panel top-panel">
-                  <div className="panel-heading">
+                <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] top-panel">
+                  <div className="panel-heading flex items-center justify-between gap-4 max-[520px]:gap-2.5 [&_h2]:text-[17px] [&_h2]:leading-normal [&_h2]:font-bold [&_p]:mt-[5px] [&_p]:text-xs [&_p]:text-(--color-muted) max-[520px]:[&_h2]:text-base">
                     <div>
                       <h2>รายจ่ายแยกตามสมาชิก</h2>
                       <p>รายจ่ายของทุกคน · {periodLabel}</p>
                     </div>
                     <Users size={20} />
                   </div>
-                  <div className="spending-list">
+                  <div className="spending-list mt-3.5">
                     {ranking.map(({ member, amount }, index) => (
-                      <div className="spending-row" key={member.id}>
+                      <div
+                        className="spending-row flex min-w-0 items-center gap-2.5 border-t border-(--color-line) py-[11px]"
+                        key={member.id}
+                      >
                         <span
                           className={
                             index === 0 && amount > 0
-                              ? "spending-rank first"
-                              : "spending-rank"
+                              ? "spending-rank w-[18px] flex-none text-center font-(family-name:--font-number) text-xs font-bold text-(--color-muted) [&.first]:text-xl [&.first]:text-(--color-expense) first"
+                              : "spending-rank w-[18px] flex-none text-center font-(family-name:--font-number) text-xs font-bold text-(--color-muted) [&.first]:text-xl [&.first]:text-(--color-expense)"
                           }
                         >
                           {index + 1}
                         </span>
                         <Avatar user={member} />
-                        <div className="spending-name">
+                        <div className="spending-name min-w-0 flex-1 [&_strong]:block [&_strong]:truncate [&_strong]:text-xs [&_small]:mt-[3px] [&_small]:block [&_small]:truncate [&_small]:text-[10px] [&_small]:text-(--color-ink-soft)">
                           <strong>
                             {member.name}
                             {member.id === user.id && (
-                              <span className="you-badge"> คุณ</span>
+                              <span className="you-badge text-[10px] text-(--color-blue)">
+                                {" "}
+                                คุณ
+                              </span>
                             )}
                           </strong>
                           <small>
@@ -640,7 +799,7 @@ function App() {
                               : "ออกจากครอบครัวแล้ว"}
                           </small>
                         </div>
-                        <strong className="spending-amount">
+                        <strong className="spending-amount flex-none font-(family-name:--font-number) text-xs font-bold whitespace-nowrap text-(--color-blue-dark)">
                           ฿{money(amount)}
                         </strong>
                       </div>
@@ -651,41 +810,63 @@ function App() {
             </>
           )}
           {page === "transactions" && (
-            <div className="page-heading">
+            <div className="page-heading mb-6 flex items-end justify-between gap-4 max-[520px]:flex-wrap max-[520px]:items-start max-[520px]:gap-3.5 [&_h1]:mt-1.5 [&_h1]:text-[28px] [&_h1]:leading-normal [&_h1]:font-bold [&_p]:mt-1.5 [&_p]:text-sm [&_p]:text-(--color-ink-soft) max-[520px]:[&_h1]:text-[25px] max-[520px]:[&_p]:text-[13px]">
               <div>
-                <span className="eyebrow">บันทึกรายรับรายจ่าย</span>
+                <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+                  บันทึกรายรับรายจ่าย
+                </span>
                 <h1>รายการทั้งหมด</h1>
                 <p>ทุกเรื่องเงินของครอบครัว อยู่รวมกันตรงนี้</p>
               </div>
-              <Button className="primary-button add-button" onClick={openNew}>
+              <Button
+                className="primary-button min-h-[46px] gap-2 rounded-xl bg-(--color-blue) px-[18px] text-sm font-bold text-white hover:bg-(--color-blue-dark) add-button min-w-36 max-[520px]:w-full max-[520px]:min-w-0 max-[520px]:px-[11px]"
+                onClick={openNew}
+              >
                 <Plus data-icon="inline-start" /> เพิ่มรายการ
               </Button>
             </div>
           )}
           {(page === "dashboard" || page === "transactions") && (
-            <section className="panel transactions-panel">
-              <div className="panel-heading">
+            <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] transactions-panel mt-5">
+              <div className="panel-heading flex items-center justify-between gap-4 max-[520px]:gap-2.5 [&_h2]:text-[17px] [&_h2]:leading-normal [&_h2]:font-bold [&_p]:mt-[5px] [&_p]:text-xs [&_p]:text-(--color-muted) max-[520px]:[&_h2]:text-base">
                 <div>
                   <h2>
                     {page === "dashboard"
                       ? "รายการล่าสุด"
                       : "รายการของครอบครัว"}
                   </h2>
-                  <p>{page === "dashboard" ? `5 รายการล่าสุด · ${periodLabel}` : `ทั้งหมด ${transactions.length} รายการ`}</p>
+                  <p>
+                    {page === "dashboard"
+                      ? `5 รายการล่าสุด · ${periodLabel}`
+                      : `ทั้งหมด ${transactions.length} รายการ`}
+                  </p>
                 </div>
                 {page === "dashboard" && (
                   <button
-                    className="view-all"
+                    className="view-all flex min-h-11 items-center gap-1.5 bg-transparent text-[13px] font-bold whitespace-nowrap text-(--color-blue)"
                     onClick={() => setPage("transactions")}
                   >
                     ดูทั้งหมด <ArrowRight size={15} />
                   </button>
                 )}
               </div>
-              <div className="transaction-list">
+              <div className="transaction-list mt-3.5">
                 {list.length === 0 ? (
-                  <div className="empty-small">
-                    <ReceiptText size={28} /><strong>ยังไม่มีรายการ{page === "dashboard" ? `ในช่วง${periodLabel}` : ""}</strong><span>เพิ่มรายรับหรือรายจ่าย เพื่อเริ่มดูภาพรวมของบ้าน</span><Button className="primary-button" onClick={openNew}><Plus size={16} /> เพิ่มรายการแรก</Button>
+                  <div className="empty-small flex flex-col items-center gap-2.5 px-3 py-9 text-center text-[13px] text-(--color-muted) [&_strong]:text-base [&_strong]:text-(--color-ink) [&_.primary-button]:mt-2">
+                    <ReceiptText size={28} />
+                    <strong>
+                      ยังไม่มีรายการ
+                      {page === "dashboard" ? `ในช่วง${periodLabel}` : ""}
+                    </strong>
+                    <span>
+                      เพิ่มรายรับหรือรายจ่าย เพื่อเริ่มดูภาพรวมของบ้าน
+                    </span>
+                    <Button
+                      className="primary-button min-h-[46px] gap-2 rounded-xl bg-(--color-blue) px-[18px] text-sm font-bold text-white hover:bg-(--color-blue-dark)"
+                      onClick={openNew}
+                    >
+                      <Plus size={16} /> เพิ่มรายการแรก
+                    </Button>
                   </div>
                 ) : (
                   list.map((item) => {
@@ -693,27 +874,34 @@ function App() {
                       (member) => member.id === item.userId,
                     );
                     return (
-                      <div className="transaction-row" key={item.id}>
-                        <span className={`transaction-icon ${item.kind}`}>
+                      <div
+                        className="transaction-row flex items-center gap-3 border-t border-(--color-line) py-4 max-[520px]:flex-wrap max-[520px]:gap-2.5"
+                        key={item.id}
+                      >
+                        <span
+                          className={`transaction-icon grid size-[38px] flex-none place-items-center rounded-[10px] [&.income]:bg-(--color-income-pale) [&.income]:text-(--color-income) [&.expense]:bg-(--color-expense-pale) [&.expense]:text-(--color-expense) ${item.kind}`}
+                        >
                           {item.kind === "income" ? (
                             <ArrowDownLeft size={19} />
                           ) : (
                             <ArrowUpRight size={19} />
                           )}
                         </span>
-                        <div className="transaction-name">
+                        <div className="transaction-name min-w-0 flex-1 max-[520px]:basis-[calc(100%-50px)] [&_strong]:block [&_strong]:truncate [&_strong]:text-sm [&_span]:mt-[3px] [&_span]:block [&_span]:text-xs [&_span]:text-(--color-muted) [&_i]:px-1 [&_i]:not-italic max-[520px]:[&_strong]:whitespace-normal max-[520px]:[&_strong]:[overflow-wrap:anywhere]">
                           <strong>{item.description}</strong>
                           <span>
                             {dateText(item.date)} <i>·</i>{" "}
                             {owner?.name || "สมาชิก"}
                           </span>
                         </div>
-                        <span className={`transaction-amount ${item.kind}`}>
+                        <span
+                          className={`transaction-amount font-(family-name:--font-number) text-[15px] font-bold whitespace-nowrap max-[520px]:ml-12 [&.income]:text-(--color-income) [&.expense]:text-(--color-expense) ${item.kind}`}
+                        >
                           {item.kind === "income" ? "+" : "−"}฿
                           {money(item.amount)}
                         </span>
                         {item.userId === user.id && (
-                          <div className="row-actions">
+                          <div className="row-actions flex gap-1 max-[520px]:ml-auto max-[520px]:gap-0 [&_button]:min-h-10 [&_button]:min-w-10 [&_button]:rounded-lg [&_button]:bg-transparent [&_button]:p-1.5 [&_button]:text-(--color-muted) [&_button:hover]:bg-(--color-blue-pale) [&_button:hover]:text-(--color-blue)">
                             <button
                               aria-label={`แก้ไข ${item.description}`}
                               onClick={() => {
@@ -740,22 +928,26 @@ function App() {
           )}
           {page === "family" && (
             <>
-              <div className="page-heading">
+              <div className="page-heading mb-6 flex items-end justify-between gap-4 max-[520px]:flex-wrap max-[520px]:items-start max-[520px]:gap-3.5 [&_h1]:mt-1.5 [&_h1]:text-[28px] [&_h1]:leading-normal [&_h1]:font-bold [&_p]:mt-1.5 [&_p]:text-sm [&_p]:text-(--color-ink-soft) max-[520px]:[&_h1]:text-[25px] max-[520px]:[&_p]:text-[13px]">
                 <div>
-                  <span className="eyebrow">จัดการครอบครัว</span>
+                  <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+                    จัดการครอบครัว
+                  </span>
                   <h1>ครอบครัวของเรา</h1>
                   <p>เพราะเรื่องเงินสนุกขึ้น เมื่อเราเก็บไปด้วยกัน</p>
                 </div>
               </div>
-              <div className="family-grid">
-                <section className="panel family-card">
-                  <div className="family-card-icon">
+              <div className="family-grid grid grid-cols-2 gap-4 max-[520px]:grid-cols-1">
+                <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] family-card text-center [&_h2]:my-[9px] [&_h2]:text-2xl [&_h2]:font-bold [&_p]:block [&_p]:text-[11px] [&_p]:text-(--color-muted) [&_small]:mt-3 [&_small]:block [&_small]:text-[11px] [&_small]:text-(--color-muted)">
+                  <div className="family-card-icon mx-auto mb-5 grid size-[50px] place-items-center rounded-xl bg-(--color-blue-pale) text-(--color-blue)">
                     <House size={24} />
                   </div>
-                  <span className="eyebrow">ครอบครัวของคุณ</span>
+                  <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+                    ครอบครัวของคุณ
+                  </span>
                   <h2>{family.name}</h2>
                   <p>ส่งรหัสนี้ให้สมาชิก เพื่อชวนเข้าร่วมครอบครัว</p>
-                  <div className="family-code">
+                  <div className="family-code my-6 flex justify-center gap-2 [&_span]:grid [&_span]:h-[58px] [&_span]:w-12 [&_span]:place-items-center [&_span]:border-2 [&_span]:border-(--color-blue-light) [&_span]:bg-(--color-blue-pale) [&_span]:font-(family-name:--font-number) [&_span]:text-[26px] [&_span]:font-bold [&_span]:text-(--color-blue-dark)">
                     {family.code.split("").map((digit, index) => (
                       <span key={index}>{digit}</span>
                     ))}
@@ -766,8 +958,8 @@ function App() {
                   </Button>
                   <small>สมาชิกใช้รหัสนี้เพื่อเข้าร่วมจากอุปกรณ์ของตนเอง</small>
                 </section>
-                <section className="panel members-card">
-                  <div className="panel-heading">
+                <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] members-card">
+                  <div className="panel-heading flex items-center justify-between gap-4 max-[520px]:gap-2.5 [&_h2]:text-[17px] [&_h2]:leading-normal [&_h2]:font-bold [&_p]:mt-[5px] [&_p]:text-xs [&_p]:text-(--color-muted) max-[520px]:[&_h2]:text-base">
                     <div>
                       <h2>สมาชิกในบ้าน</h2>
                       <p>มีทั้งหมด {members.length} คน</p>
@@ -775,20 +967,25 @@ function App() {
                     <Users size={20} />
                   </div>
                   {members.map((member) => (
-                    <div className="member-row" key={member.id}>
+                    <div
+                      className="member-row flex items-center gap-3 border-b border-(--color-line) py-[17px] [&_strong]:block [&_strong]:text-xs [&_small]:mt-[3px] [&_small]:block [&_small]:text-[10px] [&_small]:text-(--color-muted)"
+                      key={member.id}
+                    >
                       <Avatar user={member} />
                       <div>
                         <strong>
                           {member.name}{" "}
                           {member.id === user.id && (
-                            <span className="you-badge">คุณ</span>
+                            <span className="you-badge text-[10px] text-(--color-blue)">
+                              คุณ
+                            </span>
                           )}
                         </strong>
                         <small>{member.email}</small>
                       </div>
                     </div>
                   ))}
-                  <div className="leave-family">
+                  <div className="leave-family mt-[22px] border-t border-(--color-line) pt-[18px] [&_p]:mb-3 [&_p]:text-[11px] [&_p]:text-(--color-ink-soft)">
                     <p>ต้องการย้ายบ้าน? คุณสามารถออกจากครอบครัวนี้ได้</p>
                     <Button
                       variant="outline"
@@ -803,20 +1000,22 @@ function App() {
           )}
           {page === "profile" && (
             <>
-              <div className="page-heading">
+              <div className="page-heading mb-6 flex items-end justify-between gap-4 max-[520px]:flex-wrap max-[520px]:items-start max-[520px]:gap-3.5 [&_h1]:mt-1.5 [&_h1]:text-[28px] [&_h1]:leading-normal [&_h1]:font-bold [&_p]:mt-1.5 [&_p]:text-sm [&_p]:text-(--color-ink-soft) max-[520px]:[&_h1]:text-[25px] max-[520px]:[&_p]:text-[13px]">
                 <div>
-                  <span className="eyebrow">บัญชีของคุณ</span>
+                  <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+                    บัญชีของคุณ
+                  </span>
                   <h1>โปรไฟล์ของฉัน</h1>
                   <p>จัดการข้อมูลส่วนตัวของคุณได้ที่นี่</p>
                 </div>
               </div>
-              <section className="panel profile-panel">
-                <div className="profile-intro">
+              <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] profile-panel max-w-[720px]">
+                <div className="profile-intro flex items-center gap-[18px] border-b border-(--color-line) pb-6 [&_h2]:text-[19px] [&_h2]:font-bold [&_p]:mt-1 [&_p]:mb-2.5 [&_p]:text-[11px] [&_p]:text-(--color-muted)">
                   <Avatar user={user} size="large" />
                   <div>
                     <h2>{user.name}</h2>
                     <p>อัปโหลดรูปภาพขนาดไม่เกิน 1 MB</p>
-                    <label className="upload-button">
+                    <label className="upload-button inline-block cursor-pointer text-[11px] font-bold text-(--color-blue) [&_input]:absolute [&_input]:size-px [&_input]:opacity-0">
                       {avatarBusy ? "กำลังอัปโหลด…" : "เปลี่ยนรูปโปรไฟล์"}
                       <input
                         type="file"
@@ -828,7 +1027,7 @@ function App() {
                   </div>
                 </div>
                 <form
-                  className="form-stack profile-form"
+                  className="form-stack flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:gap-[7px] [&_label]:text-sm [&_label]:font-bold [&_label]:text-(--color-ink) [&_input:not([type=hidden])]:min-h-[46px] [&_input:not([type=hidden])]:bg-white [&_input:not([type=hidden])]:text-base [&_.primary-button]:w-full profile-form mt-6"
                   onSubmit={saveProfile}
                   key={user.id}
                 >
@@ -851,34 +1050,55 @@ function App() {
                     />
                   </label>
                   {profileError && (
-                    <p className="form-error" role="alert">
+                    <p
+                      className="form-error !text-[11px] !text-(--color-red)"
+                      role="alert"
+                    >
                       {profileError}
                     </p>
                   )}
                   {profileMessage && (
-                    <p className="form-notice" role="status">
+                    <p
+                      className="form-notice !text-[11px] !text-(--color-income)"
+                      role="status"
+                    >
                       {profileMessage}
                     </p>
                   )}
-                  <Button type="submit" className="primary-button">
+                  <Button
+                    type="submit"
+                    className="primary-button min-h-[46px] gap-2 rounded-xl bg-(--color-blue) px-[18px] text-sm font-bold text-white hover:bg-(--color-blue-dark)"
+                  >
                     บันทึกการเปลี่ยนแปลง
                   </Button>
                 </form>
-                <div className="danger-zone">
-                  <div>
-                    <button
-                      type="button"
-                      className="danger-delete-link"
-                      onClick={() => setConfirmation({ kind: "account" })}
-                    >
-                      ลบบัญชี
-                    </button>
-                    <p>บัญชีและรายการส่วนตัวของคุณจะถูกลบอย่างถาวร</p>
-                  </div>
+                <div className="profile-action mt-[30px] flex items-center justify-between gap-[15px] border-t border-(--color-line) pt-[22px] [&_p]:m-0 [&_p]:text-[11px] [&_p]:text-(--color-muted)">
+                  <p>จัดการรหัสผ่านสำหรับเข้าสู่ระบบ</p>
+                  <button
+                    type="button"
+                    className="profile-security-link shrink-0 cursor-pointer bg-transparent p-0 text-left text-[13px] font-bold text-(--color-blue) hover:underline focus-visible:underline"
+                    onClick={() => {
+                      setPasswordError("");
+                      setPasswordMessage("");
+                      setPage("security");
+                    }}
+                  >
+                    เปลี่ยนรหัสผ่าน
+                  </button>
+                </div>
+                <div className="profile-action mt-[30px] flex items-center justify-between gap-[15px] border-t border-(--color-line) pt-[22px] [&_p]:m-0 [&_p]:text-[11px] [&_p]:text-(--color-muted)">
+                  <p>บัญชีและรายการส่วนตัวของคุณจะถูกลบอย่างถาวร</p>
+                  <button
+                    type="button"
+                    className="danger-delete-link shrink-0 cursor-pointer bg-transparent p-0 text-left text-[13px] font-bold text-(--color-red) hover:underline focus-visible:underline"
+                    onClick={() => setConfirmation({ kind: "account" })}
+                  >
+                    ลบบัญชี
+                  </button>
                 </div>
                 <Button
                   variant="outline"
-                  className="profile-logout"
+                  className="profile-logout mt-5"
                   onClick={() => void runRequest(signOut)}
                 >
                   <LogOut data-icon="inline-start" /> ออกจากระบบ
@@ -888,40 +1108,87 @@ function App() {
           )}
           {page === "security" && (
             <>
-              <div className="page-heading">
+              <div className="page-heading mb-6 flex items-end justify-between gap-4 max-[520px]:flex-wrap max-[520px]:items-start max-[520px]:gap-3.5 [&_h1]:mt-1.5 [&_h1]:text-[28px] [&_h1]:leading-normal [&_h1]:font-bold [&_p]:mt-1.5 [&_p]:text-sm [&_p]:text-(--color-ink-soft) max-[520px]:[&_h1]:text-[25px] max-[520px]:[&_p]:text-[13px]">
                 <div>
-                  <span className="eyebrow">ACCOUNT SECURITY</span>
+                  <span className="eyebrow block text-xs font-semibold text-(--color-blue)">
+                    ACCOUNT SECURITY
+                  </span>
                   <h1>เปลี่ยนรหัสผ่าน</h1>
                   <p>ใช้รหัสผ่านปัจจุบันเพื่อยืนยันก่อนตั้งรหัสผ่านใหม่</p>
                 </div>
               </div>
-              <section className="panel profile-panel security-panel">
-                <form className="form-stack" onSubmit={savePassword}>
+              <section className="panel min-w-0 rounded-(--radius-card) border border-(--color-line) bg-white p-6 shadow-[0_3px_14px_#16345104] max-[768px]:p-5 max-[520px]:p-[17px] profile-panel max-w-[720px] security-panel">
+                <button
+                  type="button"
+                  className="security-back mb-5 inline-flex items-center gap-1.5 text-[13px] font-bold text-(--color-blue)"
+                  onClick={() => setPage("profile")}
+                >
+                  <ArrowLeft size={16} /> กลับไปหน้าโปรไฟล์
+                </button>
+                <form
+                  className="form-stack flex flex-col gap-4 [&_label]:flex [&_label]:flex-col [&_label]:gap-[7px] [&_label]:text-sm [&_label]:font-bold [&_label]:text-(--color-ink) [&_input:not([type=hidden])]:min-h-[46px] [&_input:not([type=hidden])]:bg-white [&_input:not([type=hidden])]:text-base [&_.primary-button]:w-full"
+                  onSubmit={savePassword}
+                >
                   <label>
                     รหัสผ่านปัจจุบัน
-                    <Input name="currentPassword" type="password" autoComplete="current-password" required />
+                    <Input
+                      name="currentPassword"
+                      type="password"
+                      autoComplete="current-password"
+                      required
+                    />
                   </label>
                   <label>
                     รหัสผ่านใหม่
-                    <Input name="newPassword" type="password" autoComplete="new-password" minLength={6} maxLength={72} required />
+                    <Input
+                      name="newPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={6}
+                      maxLength={72}
+                      required
+                    />
                   </label>
                   <label>
                     ยืนยันรหัสผ่านใหม่
-                    <Input name="confirmPassword" type="password" autoComplete="new-password" minLength={6} maxLength={72} required />
+                    <Input
+                      name="confirmPassword"
+                      type="password"
+                      autoComplete="new-password"
+                      minLength={6}
+                      maxLength={72}
+                      required
+                    />
                   </label>
-                  {passwordError && <p className="form-error" role="alert">{passwordError}</p>}
-                  {passwordMessage && <p className="form-notice" role="status">{passwordMessage}</p>}
-                  <Button type="submit" className="primary-button" disabled={passwordBusy}>
+                  {passwordError && (
+                    <p
+                      className="form-error !text-[11px] !text-(--color-red)"
+                      role="alert"
+                    >
+                      {passwordError}
+                    </p>
+                  )}
+                  {passwordMessage && (
+                    <p
+                      className="form-notice !text-[11px] !text-(--color-income)"
+                      role="status"
+                    >
+                      {passwordMessage}
+                    </p>
+                  )}
+                  <Button
+                    type="submit"
+                    className="primary-button min-h-[46px] gap-2 rounded-xl bg-(--color-blue) px-[18px] text-sm font-bold text-white hover:bg-(--color-blue-dark)"
+                    disabled={passwordBusy}
+                  >
                     {passwordBusy ? "กำลังบันทึก…" : "บันทึกรหัสผ่านใหม่"}
                   </Button>
                 </form>
               </section>
             </>
           )}
-          <footer className="footer">
-            <span>
-              เก็บหน่อย · เรื่องเงินของบ้านเรา
-            </span>
+          <footer className="footer flex justify-between gap-3 pt-6 pb-0.5 text-[11px] font-medium text-(--color-muted) max-[520px]:flex-col">
+            <span>เก็บหน่อย · เรื่องเงินของบ้านเรา</span>
             <span>ค่อย ๆ เก็บ ค่อย ๆ โตไปด้วยกัน ✦</span>
           </footer>
         </div>
@@ -940,7 +1207,7 @@ function App() {
           if (!open) setConfirmation(null);
         }}
       >
-        <DialogContent className="app-dialog confirm-dialog">
+        <DialogContent className="app-dialog w-[calc(100%-32px)] max-w-[440px] p-[25px] [&_[data-slot=dialog-title]]:text-[21px] [&_[data-slot=dialog-title]]:font-bold [&_[data-slot=dialog-description]]:text-xs [&_[data-slot=dialog-description]]:text-(--color-ink-soft) confirm-dialog">
           <DialogHeader>
             <DialogTitle>
               {confirmation?.kind === "leave"
@@ -959,11 +1226,14 @@ function App() {
                     : ""}
             </DialogDescription>
           </DialogHeader>
-          <div className="confirm-actions">
+          <div className="confirm-actions mt-2 flex flex-wrap justify-end gap-2 [&_button]:min-h-10 [&_button]:whitespace-nowrap">
             <Button variant="outline" onClick={() => setConfirmation(null)}>
               ยกเลิก
             </Button>
-            <Button className="confirm-destructive" onClick={confirmAction}>
+            <Button
+              className="confirm-destructive bg-(--color-red) text-white hover:bg-(--color-red) hover:opacity-90"
+              onClick={confirmAction}
+            >
               {confirmation?.kind === "leave"
                 ? "ยืนยันออกจากครอบครัว"
                 : confirmation?.kind === "account"

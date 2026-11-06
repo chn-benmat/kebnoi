@@ -36,7 +36,9 @@ go run main.go
 
 การเริ่ม API จะเรียก GORM `AutoMigrate` ก่อนเปิดพอร์ต แล้วสร้าง/อัปเกรดตารางที่แอปต้องใช้โดยอัตโนมัติ ดังนั้นเพื่อนที่ pull โค้ดชุดเดียวกันเพียงสร้างฐานข้อมูล ตั้ง `.env.local` จากไฟล์ตัวอย่าง แล้วรัน `go run main.go` เหมือนกันได้ การ migrate จะสร้าง schema สำหรับการใช้งานปัจจุบัน รวมถึงเอาตาราง token สำหรับยืนยันอีเมล/รีเซ็ตรหัสผ่านและคอลัมน์ `email_verified_at` เก่าออก
 
-ระบบยังไม่มีการยืนยันอีเมลหรือกู้คืนรหัสผ่านทางอีเมล หน้า “ลืมรหัสผ่าน” คงไว้เพื่อแจ้งให้ติดต่อผู้ดูแลระบบ
+หน้า “ลืมรหัสผ่าน” ตรวจสอบอีเมลในฐานข้อมูล แล้วให้ตั้งรหัสผ่านใหม่โดยไม่ส่งอีเมลยืนยัน รหัสผ่านใหม่เก็บเป็น bcrypt hash และเซสชันเดิมถูกยกเลิก
+
+**ข้อจำกัดด้านความปลอดภัย:** ผู้ที่รู้อีเมลของบัญชีสามารถเปลี่ยนรหัสผ่านและเข้าถึงบัญชีนั้นได้ทันที ระบบนี้จึงไม่ปลอดภัยสำหรับใช้งานจริงที่มีข้อมูลผู้ใช้ ควรเพิ่มการยืนยันตัวตนก่อนเปิดให้บุคคลทั่วไปใช้งาน
 
 จากโฟลเดอร์ `frontend`:
 
@@ -45,15 +47,18 @@ npm install
 npm run dev
 ```
 
-สมัครสมาชิกผ่าน Go API; รหัสผ่านถูกเก็บเป็น bcrypt hash, access token หมดอายุใน 15 นาที และ access/refresh token ถูกเก็บในฐานข้อมูลในรูป hash เส้นทาง Auth เป็น public; เส้นทางข้อมูลและแก้ไขบัญชีต้องมี `Authorization: Bearer <access token>`
+สมัครสมาชิกผ่าน Go API; รหัสผ่านและโทเคนเซสชันเก็บเป็น hash ในฐานข้อมูล เซสชันของเว็บมีอายุ 30 วันและใช้ HttpOnly cookie แทน localStorage โดย backend ตรวจสอบเซสชันกับ MySQL ทุกครั้ง คำขอที่เปลี่ยนข้อมูลต้องมาจาก `FRONTEND_ORIGIN` ที่ตั้งค่าไว้ ใน production ให้ใช้ HTTPS ทั้ง frontend และ backend; เบราว์เซอร์ที่บล็อก third-party cookies อาจต้องใช้ frontend และ backend บนเว็บไซต์เดียวกัน
 
 ## API
 
 - `POST /api/auth/signup`, `POST /api/auth/login`
 - `POST /api/auth/refresh`, `POST /api/auth/logout`
+- `POST /api/auth/forgot-password`, `POST /api/auth/reset-password`
 - `GET /api/health`, `GET /api/bootstrap`
 - `POST /api/families`, `POST /api/families/join`, `POST /api/families/leave`
 - `GET/POST /api/transactions`, `PATCH/DELETE /api/transactions/:id`
 - `PATCH /api/profile`, `POST /api/profile/avatar`, `PATCH /api/auth/credentials`, `PATCH /api/auth/password`, `DELETE /api/account`
 
 ทุกคำสั่ง SQL ใช้ parameter binding; API ตรวจเจ้าของรายการก่อนแก้ไขหรือลบ session และข้อมูลผู้ใช้ถูกลบตาม foreign key เมื่อปิดบัญชี
+
+ทดสอบการกู้รหัสผ่านกับ MySQL ที่ migrate แล้วได้โดยตั้ง `KEBNOI_TEST_DSN` เป็น DSN ของฐานข้อมูลทดสอบ แล้วรัน `go test ./...` จากโฟลเดอร์ `backend` การทดสอบสร้างและลบบัญชีชั่วคราวของตัวเอง

@@ -2,7 +2,6 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
-@import "../tokens.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -50,14 +49,41 @@
 }
 
 :root {
+  --color-paper: oklch(98.5% 0.006 235);
+  --color-white: oklch(100% 0 0);
+  --color-canvas: oklch(97.5% 0.012 235);
+  --color-ink: oklch(27% 0.045 251);
+  --color-ink-soft: oklch(47% 0.035 247);
+  --color-muted: oklch(49% 0.027 240);
+  --color-blue: oklch(57% 0.17 249);
+  --color-blue-dark: oklch(43% 0.14 251);
+  --color-blue-light: oklch(91% 0.045 229);
+  --color-blue-pale: oklch(96% 0.025 230);
+  --color-chart-income: #0284c7;
+  --color-chart-expense: #dc2626;
+  --color-income: var(--color-chart-income);
+  --color-income-pale: #f0f9ff;
+  --color-expense: var(--color-chart-expense);
+  --color-expense-pale: #fef2f2;
+  --color-line: oklch(91% 0.02 233);
+  --color-green: oklch(59% 0.12 164);
+  --color-green-pale: oklch(95% 0.035 165);
+  --color-orange: oklch(55% 0.15 40);
+  --color-orange-pale: oklch(96% 0.035 62);
+  --color-red: oklch(59% 0.17 27);
+  --color-pink: oklch(84% 0.09 13);
+  --font-body: "Noto Sans Thai", sans-serif;
+  --font-display: "Noto Sans Thai", sans-serif;
+  --font-number: "Geist Variable", sans-serif;
+  --radius-card: 16px;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: var(--color-blue);
+  --primary-foreground: var(--color-white);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
@@ -65,9 +91,9 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: var(--color-line);
+  --input: var(--color-line);
+  --ring: var(--color-blue);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -128,27 +154,4 @@
   html {
     @apply font-sans;
   }
-}
-
-html,
-body {
-  overflow-x: clip;
-}
-body {
-  margin: 0;
-  font-family: var(--font-body);
-  color: var(--color-ink);
-  background: var(--color-canvas);
-}
-button,
-input {
-  font: inherit;
-}
-button {
-  cursor: pointer;
-}
-button:focus-visible,
-input:focus-visible {
-  outline: 3px solid var(--color-blue);
-  outline-offset: 3px;
 }

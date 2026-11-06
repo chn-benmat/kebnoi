@@ -189,5 +189,6 @@ func (h *handlers) deleteAccount(c fiber.Ctx) error {
 	if err := h.auth.DeleteAccount(c.Context(), auth.UserID(c)); err != nil {
 		return err
 	}
+	h.setSessionCookie(c, "", -1)
 	return c.SendStatus(fiber.StatusNoContent)
 }
