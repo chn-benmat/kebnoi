@@ -3,6 +3,7 @@ import { ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PixelPal } from "./PixelPal";
+import logo from "../assets/kebnoi-logo.png";
 import {
   createFamily,
   checkResetEmail,
@@ -17,7 +18,7 @@ export function Brand() {
   return (
     <div className="flex items-center gap-2.5 text-(--color-ink)">
       <img
-        src={`${import.meta.env.BASE_URL}kebnoi-logo-concept.png`}
+        src={logo}
         alt=""
         className="size-12 shrink-0 object-contain"
       />
